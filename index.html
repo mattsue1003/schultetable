@@ -1,0 +1,2217 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>舒爾特方格生成器｜認知教案工具</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input { font: inherit; }
+
+:root {
+  /* Surfaces */
+  --bg: #f4efe6;
+  --surface: #ffffff;
+  --surface-soft: #faf6ee;
+  --surface-inset: #f1ecdf;
+  --border: #e0d8c5;
+  --border-soft: #ece5d2;
+  --border-strong: #c9bea4;
+
+  /* Text */
+  --text: #2a2622;
+  --text-soft: #5e5a52;
+  --text-muted: #908b7d;
+
+  /* Accent (changes with mode) */
+  --accent: #2c6e6a;
+  --accent-dark: #1f5350;
+  --accent-soft: #e0eceb;
+  --accent-on: #ffffff;
+
+  /* States */
+  --success: #4a7c3a;
+  --success-soft: #e6efe1;
+  --error: #b0392c;
+  --error-soft: #f5e1de;
+  --warning: #b8842c;
+
+  /* Cell number colors (two-color mode) */
+  --num-red: #c0392b;
+  --num-black: #18181b;
+
+  /* Type */
+  --font-display: 'Noto Serif TC', 'Songti TC', serif;
+  --font-body: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+
+  /* Radii */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(40, 30, 18, 0.06);
+  --shadow-md: 0 4px 14px rgba(40, 30, 18, 0.08);
+  --shadow-lg: 0 12px 32px rgba(40, 30, 18, 0.12);
+}
+
+[data-mode="reverse"] {
+  --accent: #a0552d;
+  --accent-dark: #7a4022;
+  --accent-soft: #f3e3d5;
+}
+[data-mode="twocolor"] {
+  --accent: #4a4584;
+  --accent-dark: #36315f;
+  --accent-soft: #e7e3f1;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 8% 5%, rgba(44, 110, 106, 0.05), transparent 35%),
+    radial-gradient(circle at 92% 95%, rgba(160, 85, 45, 0.04), transparent 35%);
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+/* ===== Layout ===== */
+.app {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 20px 0;
+}
+@media (max-width: 600px) {
+  .app { padding: 16px 14px 0; }
+}
+
+/* ===== Header ===== */
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(28px, 4.5vw, 38px);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  line-height: 1.15;
+  margin: 0;
+}
+.brand .brand-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 12px;
+  vertical-align: middle;
+  transition: background 0.4s;
+}
+.tagline {
+  color: var(--text-soft);
+  font-size: 14px;
+  margin: 6px 0 0 22px;
+}
+.brand-tag {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* ===== Tabs ===== */
+.tabs {
+  display: inline-flex;
+  background: var(--surface-inset);
+  border-radius: var(--r-md);
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-soft);
+}
+.tab {
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-soft);
+  border-radius: 7px;
+  transition: all 0.2s;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  background: var(--surface);
+  color: var(--accent-dark);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+
+/* ===== Card ===== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 24px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
+}
+@media (max-width: 600px) {
+  .card { padding: 18px; }
+}
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  margin: 0 0 16px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 16px;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: background 0.4s;
+}
+
+/* ===== Field Groups ===== */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  letter-spacing: 0.02em;
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ===== Segmented Buttons ===== */
+.seg {
+  display: flex;
+  background: var(--surface-inset);
+  border-radius: var(--r-md);
+  padding: 3px;
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+.seg button {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-soft);
+  border-radius: 7px;
+  transition: all 0.18s;
+  text-align: center;
+  white-space: nowrap;
+}
+.seg button:hover:not(.on):not(:disabled) { color: var(--text); }
+.seg button.on {
+  background: var(--surface);
+  color: var(--accent-dark);
+  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+}
+.seg button:disabled {
+  color: var(--text-muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== Seed input ===== */
+.seed-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.seed-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.seed-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.icon-btn {
+  padding: 8px 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-soft);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-color: var(--accent);
+}
+
+/* ===== Quantity stepper ===== */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-inset);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  width: fit-content;
+}
+.stepper button {
+  padding: 8px 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-soft);
+  background: transparent;
+  transition: background 0.15s;
+}
+.stepper button:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--accent-dark);
+}
+.stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+.stepper .value {
+  min-width: 44px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  padding: 0 4px;
+}
+
+/* ===== Checkbox ===== */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  color: var(--text);
+}
+.check input { display: none; }
+.check .box {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.check input:checked + .box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.check .box::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid var(--accent-on);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s;
+  margin-bottom: 2px;
+}
+.check input:checked + .box::after { transform: rotate(45deg) scale(1); }
+
+/* ===== Primary action button ===== */
+.btn {
+  padding: 11px 22px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+.btn-primary:hover {
+  background: var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+}
+
+.action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* ===== Practice: Stats ===== */
+.play-stats {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+@media (max-width: 540px) {
+  .play-stats { grid-template-columns: 1fr 1fr; }
+  .play-stats .stat-target { grid-column: span 2; }
+}
+.stat {
+  background: var(--surface-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  text-align: center;
+}
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-target {
+  background: var(--accent);
+  border-color: var(--accent-dark);
+}
+.stat-target .stat-label { color: rgba(255,255,255,0.7); }
+.stat-target .stat-value {
+  color: var(--accent-on);
+  font-size: 38px;
+}
+.stat-target.tc-red { background: var(--num-red); border-color: var(--num-red); }
+.stat-target.tc-black { background: var(--num-black); border-color: var(--num-black); }
+.stat-target-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255,255,255,0.22);
+  color: rgba(255,255,255,0.95);
+  padding: 2px 8px;
+  border-radius: 100px;
+  margin-bottom: 4px;
+  letter-spacing: 0.1em;
+}
+
+.progress-bar {
+  height: 5px;
+  background: var(--surface-inset);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-dark));
+  border-radius: 100px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 0;
+}
+
+/* ===== Schulte Grid ===== */
+.grid-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
+}
+.grid {
+  display: grid;
+  gap: 6px;
+  background: var(--border-strong);
+  padding: 6px;
+  border-radius: var(--r-md);
+  width: 100%;
+  max-width: 540px;
+  aspect-ratio: 1;
+  box-shadow: var(--shadow-md);
+}
+.grid.size-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.size-4 { grid-template-columns: repeat(4, 1fr); }
+.grid.size-5 { grid-template-columns: repeat(5, 1fr); }
+.grid.size-6 { grid-template-columns: repeat(6, 1fr); }
+.grid.size-7 { grid-template-columns: repeat(7, 1fr); }
+
+.cell {
+  background: var(--surface);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--num-black);
+  font-variant-numeric: tabular-nums;
+  transition: background 0.18s, transform 0.12s, color 0.18s;
+  user-select: none;
+  cursor: pointer;
+  position: relative;
+  font-size: clamp(20px, 4vw, 32px);
+}
+.grid.size-6 .cell { font-size: clamp(16px, 3.2vw, 26px); }
+.grid.size-7 .cell { font-size: clamp(14px, 2.8vw, 22px); }
+.cell.tc-red { color: var(--num-red); }
+.cell.tc-black { color: var(--num-black); }
+.cell:hover:not(.found):not(.disabled) {
+  background: var(--accent-soft);
+  transform: scale(1.04);
+}
+.cell.found {
+  background: var(--success-soft);
+  color: var(--success);
+  cursor: default;
+  position: relative;
+}
+.cell.found::after {
+  content: '✓';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+  opacity: 0.7;
+}
+.cell.error-flash {
+  animation: errorFlash 0.4s ease-out;
+}
+@keyframes errorFlash {
+  0%, 100% { background: var(--surface); }
+  30% { background: var(--error-soft); transform: scale(0.96); }
+}
+.cell.success-pulse {
+  animation: successPulse 0.35s ease-out;
+}
+@keyframes successPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.12); background: var(--accent-soft); }
+  100% { transform: scale(1); }
+}
+
+/* Practice idle prompt */
+.idle-prompt {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+.idle-prompt .icon {
+  font-size: 48px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 12px;
+  display: block;
+}
+.idle-prompt .msg {
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.idle-prompt .sub {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ===== Completion overlay ===== */
+.completion {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  color: white;
+  border-radius: var(--r-lg);
+  padding: 32px 28px;
+  text-align: center;
+  margin-top: 16px;
+  animation: slideUp 0.4s ease-out;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.completion-icon {
+  font-family: var(--font-display);
+  font-size: 44px;
+  margin-bottom: 12px;
+  opacity: 0.95;
+}
+.completion-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 18px;
+  letter-spacing: 0.04em;
+}
+.completion-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.completion-stat {
+  background: rgba(255,255,255,0.12);
+  border-radius: var(--r-md);
+  padding: 14px 8px;
+}
+.completion-stat .label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  opacity: 0.7;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.completion-stat .value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.completion-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.completion-actions .btn {
+  background: white;
+  color: var(--accent-dark);
+}
+.completion-actions .btn:hover {
+  background: rgba(255,255,255,0.9);
+  transform: translateY(-1px);
+}
+.completion-actions .btn.ghost {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.completion-actions .btn.ghost:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* ===== Print preview ===== */
+.preview-wrap {
+  background: var(--surface-inset);
+  border-radius: var(--r-md);
+  padding: 18px;
+  text-align: center;
+  border: 1px solid var(--border-soft);
+}
+.preview-canvas {
+  max-width: 100%;
+  height: auto;
+  background: white;
+  box-shadow: var(--shadow-md);
+  border-radius: 2px;
+  display: inline-block;
+}
+.preview-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ===== Mode description ===== */
+.mode-desc {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--accent-dark);
+  margin-top: 4px;
+  transition: background 0.4s, border-color 0.4s, color 0.4s;
+  line-height: 1.6;
+}
+.mode-desc strong {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+
+/* ===== Deck summary ===== */
+.deck-summary {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background 0.4s, border-color 0.4s;
+}
+.deck-summary-icon {
+  font-size: 22px;
+  color: var(--accent);
+  font-family: var(--font-display);
+}
+.deck-summary-text {
+  font-weight: 700;
+  color: var(--accent-dark);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+/* ===== Footer ===== */
+.footer {
+  text-align: center;
+  margin: 36px 0 12px;
+  font-family: var(--font-display);
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+}
+.footer .divider {
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: var(--border-strong);
+  vertical-align: middle;
+  margin: 0 14px;
+}
+
+/* ===== Tab content ===== */
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ===== Print Styles (window.print) ===== */
+@media print {
+  body { background: white; padding: 0; }
+  .app, .footer { display: none; }
+  .print-area { display: block !important; }
+  @page { size: A4 portrait; margin: 0; }
+}
+.print-area {
+  display: none;
+}
+
+/* Mobile tweaks */
+@media (max-width: 540px) {
+  .header { margin-bottom: 18px; }
+  .brand { font-size: 26px; }
+  .completion-stats { grid-template-columns: 1fr; gap: 8px; }
+  .completion-stat { display: flex; justify-content: space-between; align-items: center; }
+  .completion-stat .label { margin: 0; }
+}
+</style>
+</head>
+<body data-mode="classic">
+
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <div>
+      <h1 class="brand"><span class="brand-dot"></span>舒爾特方格生成器</h1>
+      <p class="tagline">注意力訓練 ‧ 視覺搜尋 ‧ 處理速度</p>
+    </div>
+    <div class="brand-tag">OT 認知教案</div>
+  </header>
+
+  <!-- Tab nav -->
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="practice">練習模式</button>
+    <button class="tab" data-tab="print">紙本列印</button>
+    <button class="tab" data-tab="cards">桌遊牌卡</button>
+  </nav>
+
+  <!-- ====== SETTINGS CARD (shared) ====== -->
+  <section class="card">
+    <h2 class="card-title">教案設定</h2>
+    <div class="field-grid">
+
+      <div class="field">
+        <label class="field-label">遊戲模式</label>
+        <div class="seg" id="modeSeg">
+          <button data-mode="classic" class="on">經典升序</button>
+          <button data-mode="reverse">倒序遞減</button>
+          <button data-mode="twocolor">雙色交替</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">方格大小</label>
+        <div class="seg" id="sizeSeg">
+          <button data-size="3">3×3</button>
+          <button data-size="4">4×4</button>
+          <button data-size="5" class="on">5×5</button>
+          <button data-size="6">6×6</button>
+          <button data-size="7">7×7</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label">隨機種子（同種子可重現同一題）</label>
+        <div class="seed-row">
+          <input type="text" class="seed-input" id="seedInput" value="100000" maxlength="9">
+          <button class="icon-btn" id="newSeedBtn" title="重新抽題">⟳ 換題</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="mode-desc" id="modeDesc"></div>
+  </section>
+
+  <!-- ====== PRACTICE TAB ====== -->
+  <div class="tab-content active" id="practiceTab">
+    <section class="card">
+      <h2 class="card-title">開始練習</h2>
+
+      <div id="practiceIdle">
+        <div class="idle-prompt">
+          <span class="icon">▣</span>
+          <div class="msg">按下「開始」即可進入練習</div>
+          <div class="sub">計時將在您點選第一個正確數字時啟動</div>
+        </div>
+        <div class="action-row" style="justify-content:center;">
+          <button class="btn btn-primary" id="startBtn">開始練習 →</button>
+        </div>
+      </div>
+
+      <div id="practiceActive" style="display:none;">
+        <div class="play-stats">
+          <div class="stat stat-target" id="statTarget">
+            <div class="stat-label">下一個目標</div>
+            <div class="stat-value" id="targetValue">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">計時</div>
+            <div class="stat-value" id="timerValue">00:00.0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">錯誤</div>
+            <div class="stat-value" id="errorValue">0</div>
+          </div>
+        </div>
+
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+        <div class="grid-wrap">
+          <div class="grid" id="practiceGrid"></div>
+        </div>
+
+        <div class="action-row" style="justify-content:center; margin-top:16px;">
+          <button class="btn btn-secondary" id="restartBtn">重練本題</button>
+          <button class="btn btn-secondary" id="newPuzzleBtn">換新題目</button>
+          <button class="btn btn-secondary" id="exitBtn">回設定</button>
+        </div>
+
+        <div id="completionView" style="display:none;"></div>
+      </div>
+
+    </section>
+  </div>
+
+  <!-- ====== PRINT TAB ====== -->
+  <div class="tab-content" id="printTab">
+
+    <section class="card">
+      <h2 class="card-title">列印選項</h2>
+      <div class="field-grid">
+        <div class="field">
+          <label class="field-label">列印份數（每張 1 題）</label>
+          <div class="stepper">
+            <button id="qtyMinus">−</button>
+            <span class="value" id="qtyValue">3</span>
+            <button id="qtyPlus">+</button>
+          </div>
+          <span class="field-hint">1 – 10 份，每份題目不同</span>
+        </div>
+
+        <div class="field">
+          <label class="field-label">其他選項</label>
+          <label class="check">
+            <input type="checkbox" id="includeRecord" checked>
+            <span class="box"></span>
+            <span>附評估紀錄欄位（時間、錯誤、姓名、日期）</span>
+          </label>
+          <label class="check" style="margin-top:8px;">
+            <input type="checkbox" id="includeInstr" checked>
+            <span class="box"></span>
+            <span>附遊戲說明</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="action-row" style="margin-top:18px;">
+        <button class="btn btn-primary" id="downloadPdfBtn">下載 PDF</button>
+        <button class="btn btn-secondary" id="browserPrintBtn">瀏覽器列印</button>
+        <button class="btn btn-secondary" id="refreshPreview">更新預覽</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">預覽（首頁）</h2>
+      <div class="preview-wrap">
+        <canvas class="preview-canvas" id="previewCanvas"></canvas>
+        <div class="preview-meta" id="previewMeta">—</div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ====== CARDS TAB ====== -->
+  <div class="tab-content" id="cardsTab">
+
+    <section class="card">
+      <h2 class="card-title">數字牌組設定</h2>
+      <div class="field-grid">
+
+        <div class="field">
+          <label class="field-label">數字範圍</label>
+          <div class="seg" id="deckRangeSeg">
+            <button data-range="10">1–10</button>
+            <button data-range="20" class="on">1–20</button>
+            <button data-range="30">1–30</button>
+            <button data-range="50">1–50</button>
+          </div>
+          <span class="field-hint">幼兒 1-10／學齡 1-20／進階 1-50</span>
+        </div>
+
+        <div class="field">
+          <label class="field-label">每數字份數</label>
+          <div class="seg" id="deckCopiesSeg">
+            <button data-copies="1" class="on">1 份</button>
+            <button data-copies="2">2 份（對對碰）</button>
+            <button data-copies="4">4 份（分組）</button>
+          </div>
+          <span class="field-hint">對對碰需 2 份以上才能配對</span>
+        </div>
+
+        <div class="field">
+          <label class="field-label">卡面風格</label>
+          <div class="seg" id="deckStyleSeg">
+            <button data-style="plain" class="on">純數字</button>
+            <button data-style="dots">數字+點數</button>
+            <button data-style="color">彩色分組</button>
+          </div>
+          <span class="field-hint" id="deckStyleHint">大數字為主，視覺清晰</span>
+        </div>
+
+        <div class="field">
+          <label class="field-label">附加內容</label>
+          <label class="check">
+            <input type="checkbox" id="deckSpecial">
+            <span class="box"></span>
+            <span>加入特殊牌 ★ ↔ ✕ ×2 ?（共 10 張）</span>
+          </label>
+          <label class="check" style="margin-top:8px;">
+            <input type="checkbox" id="deckRules" checked>
+            <span class="box"></span>
+            <span>附遊戲規則頁（6 種玩法）</span>
+          </label>
+        </div>
+
+      </div>
+
+      <div class="deck-summary" id="deckSummary">
+        <span class="deck-summary-icon">▣</span>
+        <span class="deck-summary-text">共 20 張數字牌 ‧ 3 頁</span>
+      </div>
+
+      <div class="action-row" style="margin-top:18px;">
+        <button class="btn btn-primary" id="deckDownloadBtn">下載完整牌組 PDF</button>
+        <button class="btn btn-secondary" id="deckPrintBtn">瀏覽器列印</button>
+        <button class="btn btn-secondary" id="deckRefreshBtn">更新預覽</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">預覽（首頁）</h2>
+      <div class="preview-wrap">
+        <canvas class="preview-canvas" id="deckPreviewCanvas"></canvas>
+        <div class="preview-meta" id="deckPreviewMeta">—</div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer class="footer">
+    設計者 <span class="divider"></span> 愛迪樂 鍾孟修 職能治療師
+  </footer>
+
+</div>
+
+<!-- Print-only area, populated when needed -->
+<div class="print-area" id="printArea"></div>
+
+<script>
+/* ============================================================
+   舒爾特方格生成器 - 核心邏輯
+   ============================================================ */
+
+// ----- Constants -----
+const MODE_LABELS = {
+  classic: '經典升序',
+  reverse: '倒序遞減',
+  twocolor: '雙色交替'
+};
+const MODE_DESC = {
+  classic: '<strong>玩法：</strong>依序點選 <strong>1 → 2 → 3 …</strong> 直到最大值。最經典的視覺搜尋訓練，培養專注與處理速度。',
+  reverse: '<strong>玩法：</strong>由大至小，依序點選 <strong>最大值 → … → 2 → 1</strong>。增加工作記憶難度，適合進階者。',
+  twocolor: '<strong>玩法：</strong>紅黑兩組數字交替點選 <strong>紅 1 → 黑 1 → 紅 2 → 黑 2 …</strong>。需快速切換注意力，挑戰性高。'
+};
+const MODE_INSTR = {
+  classic: '依序找出並點選 1 至 N 的數字',
+  reverse: '由大至小，依序找出並點選 N 至 1 的數字',
+  twocolor: '紅黑交替：紅 1 → 黑 1 → 紅 2 → 黑 2 …'
+};
+
+// ----- State -----
+const state = {
+  tab: 'practice',
+  mode: 'classic',
+  size: 5,
+  seed: 100000,
+  print: {
+    quantity: 3,
+    includeRecord: true,
+    includeInstr: true
+  },
+  cards: {
+    range: 20,            // 10/20/30/50
+    copies: 1,            // 1/2/4
+    style: 'plain',       // plain/dots/color
+    includeSpecial: false,
+    includeRules: true
+  },
+  play: null   // populated when starting practice
+};
+
+// ----- Utilities -----
+const $ = (id) => document.getElementById(id);
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function() {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffleSeeded(arr, rng) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function randomSeed() {
+  return Math.floor(Math.random() * 900000) + 100000;
+}
+function formatTime(ms) {
+  const totalMs = Math.max(0, Math.floor(ms));
+  const m = Math.floor(totalMs / 60000);
+  const s = Math.floor((totalMs % 60000) / 1000);
+  const ds = Math.floor((totalMs % 1000) / 100);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${ds}`;
+}
+function fmtDate(d = new Date()) {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}/${mo}/${da}`;
+}
+
+// ----- Puzzle generator -----
+function generatePuzzle(mode, size, seed) {
+  const n = size * size;
+  const rng = mulberry32(seed);
+  let cells = [];
+
+  if (mode === 'classic' || mode === 'reverse') {
+    const nums = [];
+    for (let i = 1; i <= n; i++) nums.push({ num: i, color: 'plain' });
+    cells = shuffleSeeded(nums, rng);
+  } else if (mode === 'twocolor') {
+    const R = Math.ceil(n / 2);
+    const B = n - R;
+    const set = [];
+    for (let i = 1; i <= R; i++) set.push({ num: i, color: 'red' });
+    for (let i = 1; i <= B; i++) set.push({ num: i, color: 'black' });
+    cells = shuffleSeeded(set, rng);
+  }
+
+  let targets = [];
+  if (mode === 'classic') {
+    for (let i = 1; i <= n; i++) targets.push({ num: i, color: 'plain' });
+  } else if (mode === 'reverse') {
+    for (let i = n; i >= 1; i--) targets.push({ num: i, color: 'plain' });
+  } else if (mode === 'twocolor') {
+    const R = Math.ceil(n / 2);
+    const B = n - R;
+    for (let i = 1; i <= Math.max(R, B); i++) {
+      if (i <= R) targets.push({ num: i, color: 'red' });
+      if (i <= B) targets.push({ num: i, color: 'black' });
+    }
+  }
+  return { cells, targets, size, mode, seed };
+}
+
+// ----- UI: Settings -----
+function setMode(mode) {
+  state.mode = mode;
+  document.body.dataset.mode = mode;
+  $('modeSeg').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+  // Two-color disables 3x3
+  const sizeBtns = $('sizeSeg').querySelectorAll('button');
+  sizeBtns.forEach(b => {
+    const sz = parseInt(b.dataset.size, 10);
+    if (mode === 'twocolor' && sz === 3) {
+      b.disabled = true;
+      if (state.size === 3) {
+        setSize(4);
+      }
+    } else {
+      b.disabled = false;
+    }
+  });
+  $('modeDesc').innerHTML = MODE_DESC[mode];
+  // Reset practice view to idle, refresh preview if on print tab
+  resetPracticeUI();
+  if (state.tab === 'print') renderPreview();
+  if (state.tab === 'cards') renderDeckPreview();
+}
+function setSize(size) {
+  state.size = size;
+  $('sizeSeg').querySelectorAll('button').forEach(b => {
+    b.classList.toggle('on', parseInt(b.dataset.size, 10) === size);
+  });
+  resetPracticeUI();
+  if (state.tab === 'print') renderPreview();
+  if (state.tab === 'cards') renderDeckPreview();
+}
+function setSeed(seed) {
+  const s = parseInt(seed, 10);
+  if (Number.isFinite(s) && s >= 0) {
+    state.seed = s;
+    $('seedInput').value = s;
+    resetPracticeUI();
+    if (state.tab === 'print') renderPreview();
+    if (state.tab === 'cards') renderDeckPreview();
+  }
+}
+
+// ----- UI: Tabs -----
+function setTab(tab) {
+  state.tab = tab;
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.toggle('active', el.id === `${tab}Tab`);
+  });
+  if (tab === 'print') renderPreview();
+  if (tab === 'cards') renderDeckPreview();
+}
+
+/* ============================================================
+   PRACTICE MODE
+   ============================================================ */
+function resetPracticeUI() {
+  $('practiceIdle').style.display = 'block';
+  $('practiceActive').style.display = 'none';
+  $('completionView').style.display = 'none';
+  if (state.play && state.play.timer) {
+    clearInterval(state.play.timer);
+  }
+  state.play = null;
+}
+
+function startPractice() {
+  const puzzle = generatePuzzle(state.mode, state.size, state.seed);
+  state.play = {
+    puzzle,
+    targetIdx: 0,
+    errors: 0,
+    startTime: null,   // starts on first correct click
+    elapsed: 0,
+    timer: null,
+    finished: false,
+    foundCells: new Set()
+  };
+  $('practiceIdle').style.display = 'none';
+  $('practiceActive').style.display = 'block';
+  $('completionView').style.display = 'none';
+  renderPracticeGrid();
+  updateStats();
+  updateTarget();
+}
+
+function renderPracticeGrid() {
+  const { puzzle } = state.play;
+  const grid = $('practiceGrid');
+  grid.className = `grid size-${puzzle.size}`;
+  grid.innerHTML = '';
+  puzzle.cells.forEach((c, idx) => {
+    const cell = document.createElement('button');
+    cell.className = 'cell' + (c.color === 'red' ? ' tc-red' : c.color === 'black' ? ' tc-black' : '');
+    cell.textContent = c.num;
+    cell.dataset.idx = idx;
+    cell.addEventListener('click', () => handleCellClick(idx));
+    grid.appendChild(cell);
+  });
+}
+
+function handleCellClick(idx) {
+  const p = state.play;
+  if (!p || p.finished) return;
+  if (p.foundCells.has(idx)) return;
+
+  const cell = p.puzzle.cells[idx];
+  const target = p.puzzle.targets[p.targetIdx];
+  const cellEl = $('practiceGrid').children[idx];
+
+  if (cell.num === target.num && cell.color === target.color) {
+    // Correct
+    if (!p.startTime) {
+      p.startTime = performance.now();
+      p.timer = setInterval(tickTimer, 100);
+    }
+    p.foundCells.add(idx);
+    cellEl.classList.add('found', 'success-pulse');
+    setTimeout(() => cellEl.classList.remove('success-pulse'), 350);
+    p.targetIdx += 1;
+    updateTarget();
+    updateProgress();
+    if (p.targetIdx >= p.puzzle.targets.length) {
+      finishPractice();
+    }
+  } else {
+    // Wrong
+    p.errors += 1;
+    cellEl.classList.remove('error-flash');
+    void cellEl.offsetWidth;  // restart animation
+    cellEl.classList.add('error-flash');
+    updateStats();
+  }
+}
+
+function tickTimer() {
+  const p = state.play;
+  if (!p || !p.startTime || p.finished) return;
+  p.elapsed = performance.now() - p.startTime;
+  $('timerValue').textContent = formatTime(p.elapsed);
+}
+
+function updateStats() {
+  const p = state.play;
+  $('errorValue').textContent = p.errors;
+  if (!p.startTime) $('timerValue').textContent = '00:00.0';
+}
+function updateTarget() {
+  const p = state.play;
+  const total = p.puzzle.targets.length;
+  const t = p.targetIdx < total ? p.puzzle.targets[p.targetIdx] : null;
+  const stat = $('statTarget');
+  stat.classList.remove('tc-red', 'tc-black');
+  if (!t) {
+    $('targetValue').innerHTML = '✓';
+    return;
+  }
+  if (t.color === 'red') {
+    stat.classList.add('tc-red');
+    $('targetValue').innerHTML = `<span class="stat-target-tag">紅</span><br>${t.num}`;
+  } else if (t.color === 'black') {
+    stat.classList.add('tc-black');
+    $('targetValue').innerHTML = `<span class="stat-target-tag">黑</span><br>${t.num}`;
+  } else {
+    $('targetValue').textContent = t.num;
+  }
+}
+function updateProgress() {
+  const p = state.play;
+  const pct = (p.targetIdx / p.puzzle.targets.length) * 100;
+  $('progressFill').style.width = pct + '%';
+}
+
+function finishPractice() {
+  const p = state.play;
+  p.finished = true;
+  if (p.timer) clearInterval(p.timer);
+  p.elapsed = performance.now() - p.startTime;
+  $('timerValue').textContent = formatTime(p.elapsed);
+  showCompletion();
+}
+
+function showCompletion() {
+  const p = state.play;
+  const total = p.puzzle.targets.length;
+  const accuracy = total > 0 ? Math.round((total / (total + p.errors)) * 100) : 100;
+  const avgPerTarget = total > 0 ? (p.elapsed / total) : 0;
+  const view = $('completionView');
+  view.style.display = 'block';
+  view.innerHTML = `
+    <div class="completion">
+      <div class="completion-icon">✓</div>
+      <div class="completion-title">完成！</div>
+      <div class="completion-stats">
+        <div class="completion-stat">
+          <div class="label">總時間</div>
+          <div class="value">${formatTime(p.elapsed)}</div>
+        </div>
+        <div class="completion-stat">
+          <div class="label">錯誤次數</div>
+          <div class="value">${p.errors}</div>
+        </div>
+        <div class="completion-stat">
+          <div class="label">每題平均</div>
+          <div class="value">${(avgPerTarget/1000).toFixed(1)}s</div>
+        </div>
+      </div>
+      <div class="completion-actions">
+        <button class="btn" id="cmpRestart">再來一次</button>
+        <button class="btn ghost" id="cmpNew">換新題目</button>
+      </div>
+    </div>
+  `;
+  $('cmpRestart').addEventListener('click', startPractice);
+  $('cmpNew').addEventListener('click', () => {
+    setSeed(randomSeed());
+    startPractice();
+  });
+  view.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ============================================================
+   PRINT MODE
+   ============================================================ */
+function renderToCanvas(canvas, puzzle, opts = {}) {
+  const {
+    pageNo = 1,
+    pageTotal = 1,
+    includeRecord = true,
+    includeInstr = true,
+    scale = 2
+  } = opts;
+  // A4 portrait, 595 x 842 pt; render at scale (default 2x for clarity)
+  const W = 595 * scale;
+  const H = 842 * scale;
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = '595px';
+  canvas.style.height = '842px';
+  const ctx = canvas.getContext('2d');
+  // White background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const u = scale;   // unit
+  const margin = 50 * u;
+
+  // ===== Header band =====
+  ctx.fillStyle = '#2a2622';
+  ctx.font = `700 ${26*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('舒爾特方格', margin, margin);
+
+  // Mode label & page number on right
+  ctx.font = `500 ${12*u}px "Noto Sans TC", sans-serif`;
+  ctx.fillStyle = '#5e5a52';
+  ctx.textAlign = 'right';
+  ctx.fillText(`${MODE_LABELS[puzzle.mode]}　${puzzle.size}×${puzzle.size}　第 ${pageNo} / ${pageTotal} 題　種子 ${puzzle.seed}`,
+    W - margin, margin + 8 * u);
+
+  // Decorative line under title
+  ctx.strokeStyle = '#c9bea4';
+  ctx.lineWidth = 0.8 * u;
+  ctx.beginPath();
+  ctx.moveTo(margin, margin + 40 * u);
+  ctx.lineTo(W - margin, margin + 40 * u);
+  ctx.stroke();
+
+  // ===== Instructions =====
+  let cursorY = margin + 56 * u;
+  if (includeInstr) {
+    ctx.fillStyle = '#2a2622';
+    ctx.font = `700 ${13*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('遊戲說明', margin, cursorY);
+    ctx.font = `400 ${13*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillStyle = '#5e5a52';
+    ctx.fillText('　' + MODE_INSTR[puzzle.mode], margin + 60 * u, cursorY);
+    cursorY += 28 * u;
+  }
+
+  // ===== Grid =====
+  const gridSize = Math.min(W - 2 * margin, 460 * u);
+  const gridX = (W - gridSize) / 2;
+  const gridY = cursorY + 10 * u;
+  const cellSize = gridSize / puzzle.size;
+
+  // Outer frame
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(gridX, gridY, gridSize, gridSize);
+
+  for (let i = 0; i < puzzle.cells.length; i++) {
+    const cell = puzzle.cells[i];
+    const row = Math.floor(i / puzzle.size);
+    const col = i % puzzle.size;
+    const cx = gridX + col * cellSize;
+    const cy = gridY + row * cellSize;
+    const pad = 1.2 * u;
+    // White cell
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx + pad, cy + pad, cellSize - 2 * pad, cellSize - 2 * pad);
+    // Number
+    const fontPx = cellSize * (puzzle.size <= 4 ? 0.42 : puzzle.size <= 5 ? 0.38 : puzzle.size === 6 ? 0.34 : 0.30);
+    ctx.fillStyle = cell.color === 'red' ? '#c0392b' : '#18181b';
+    ctx.font = `700 ${fontPx}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(cell.num), cx + cellSize / 2, cy + cellSize / 2);
+  }
+
+  // ===== Record fields =====
+  let footY = gridY + gridSize + 32 * u;
+  if (includeRecord) {
+    ctx.fillStyle = '#2a2622';
+    ctx.font = `700 ${13*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('評估紀錄', margin, footY);
+    footY += 22 * u;
+
+    const fields = [
+      ['姓名：', 180 * u],
+      ['日期：', 130 * u],
+      ['完成時間：', 130 * u],
+      ['錯誤次數：', 110 * u]
+    ];
+    ctx.font = `500 ${12*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillStyle = '#5e5a52';
+    let fx = margin;
+    let fy = footY;
+    fields.forEach(([label, width]) => {
+      // Label
+      ctx.fillStyle = '#2a2622';
+      ctx.fillText(label, fx, fy);
+      const lw = ctx.measureText(label).width;
+      // Underline
+      ctx.strokeStyle = '#5e5a52';
+      ctx.lineWidth = 0.6 * u;
+      ctx.beginPath();
+      ctx.moveTo(fx + lw + 4 * u, fy + 14 * u);
+      ctx.lineTo(fx + width, fy + 14 * u);
+      ctx.stroke();
+      fx += width + 14 * u;
+      if (fx > W - margin - 120 * u) {
+        fx = margin;
+        fy += 28 * u;
+      }
+    });
+    footY = fy + 36 * u;
+
+    // Observation notes box
+    ctx.fillStyle = '#2a2622';
+    ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillText('觀察備註：', margin, footY);
+    ctx.strokeStyle = '#c9bea4';
+    ctx.lineWidth = 0.6 * u;
+    const boxY = footY + 18 * u;
+    const boxH = 60 * u;
+    for (let i = 0; i < 3; i++) {
+      const ly = boxY + i * (boxH / 3);
+      ctx.beginPath();
+      ctx.moveTo(margin, ly);
+      ctx.lineTo(W - margin, ly);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(margin, boxY + boxH);
+    ctx.lineTo(W - margin, boxY + boxH);
+    ctx.stroke();
+  }
+
+  // ===== Footer signature =====
+  ctx.fillStyle = '#908b7d';
+  ctx.font = `500 ${10*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('設計者 ｜ 愛迪樂 鍾孟修 職能治療師', W / 2, H - margin + 10 * u);
+}
+
+function renderPreview() {
+  const canvas = $('previewCanvas');
+  const puzzle = generatePuzzle(state.mode, state.size, state.seed);
+  renderToCanvas(canvas, puzzle, {
+    pageNo: 1,
+    pageTotal: state.print.quantity,
+    includeRecord: state.print.includeRecord,
+    includeInstr: state.print.includeInstr,
+    scale: 1.5
+  });
+  $('previewMeta').textContent =
+    `${MODE_LABELS[state.mode]} ‧ ${state.size}×${state.size} ‧ 第 1 / ${state.print.quantity} 題 ‧ 種子 ${state.seed}`;
+}
+
+function downloadPDF() {
+  const btn = $('downloadPdfBtn');
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  setTimeout(() => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+      const tmp = document.createElement('canvas');
+      const qty = state.print.quantity;
+      const baseSeed = state.seed;
+      for (let i = 0; i < qty; i++) {
+        const seed = baseSeed + i;
+        const puzzle = generatePuzzle(state.mode, state.size, seed);
+        renderToCanvas(tmp, puzzle, {
+          pageNo: i + 1,
+          pageTotal: qty,
+          includeRecord: state.print.includeRecord,
+          includeInstr: state.print.includeInstr,
+          scale: 2
+        });
+        const imgData = tmp.toDataURL('image/png');
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
+      }
+      const tag = MODE_LABELS[state.mode];
+      const filename = `舒爾特方格_${tag}_${state.size}x${state.size}_${baseSeed}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error(err);
+      alert('PDF 生成失敗：' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '下載 PDF';
+    }
+  }, 60);
+}
+
+function browserPrint() {
+  // Build a print-only DOM with each puzzle on its own page (image-based for fidelity)
+  const area = $('printArea');
+  area.innerHTML = '';
+  const qty = state.print.quantity;
+  const baseSeed = state.seed;
+  const tmp = document.createElement('canvas');
+  for (let i = 0; i < qty; i++) {
+    const seed = baseSeed + i;
+    const puzzle = generatePuzzle(state.mode, state.size, seed);
+    renderToCanvas(tmp, puzzle, {
+      pageNo: i + 1,
+      pageTotal: qty,
+      includeRecord: state.print.includeRecord,
+      includeInstr: state.print.includeInstr,
+      scale: 2
+    });
+    const img = new Image();
+    img.src = tmp.toDataURL('image/png');
+    img.style.width = '210mm';
+    img.style.height = '297mm';
+    img.style.display = 'block';
+    if (i < qty - 1) img.style.pageBreakAfter = 'always';
+    area.appendChild(img);
+  }
+  setTimeout(() => window.print(), 220);
+}
+
+/* ============================================================
+   CARDS MODE (number deck for game play)
+   ============================================================ */
+
+const SPECIAL_CARDS = [
+  { type: 'special', value: 'wild',      label: '萬用',  symbol: '★',  desc: '可代替任何數字使用' },
+  { type: 'special', value: 'swap',      label: '交換',  symbol: '↔',  desc: '與其他玩家交換一張手牌' },
+  { type: 'special', value: 'skip',      label: '跳過',  symbol: '✕',  desc: '指定一位玩家暫停一輪' },
+  { type: 'special', value: 'double',    label: '翻倍',  symbol: '×2', desc: '本回合贏取的得分加倍' },
+  { type: 'special', value: 'challenge', label: '挑戰',  symbol: '?',  desc: '主持人出題，答對加分' }
+];
+
+const COLOR_GROUPS = [
+  { range: [1, 9],   bg: '#fef3c7', accent: '#d97706', label: '1-9' },
+  { range: [10, 19], bg: '#fee2e2', accent: '#dc2626', label: '10-19' },
+  { range: [20, 29], bg: '#dbeafe', accent: '#1d4ed8', label: '20-29' },
+  { range: [30, 39], bg: '#dcfce7', accent: '#16a34a', label: '30-39' },
+  { range: [40, 49], bg: '#f3e8ff', accent: '#7c3aed', label: '40-49' },
+  { range: [50, 99], bg: '#ffedd5', accent: '#ea580c', label: '50+' }
+];
+
+function getColorGroup(num) {
+  return COLOR_GROUPS.find(g => num >= g.range[0] && num <= g.range[1]) || COLOR_GROUPS[0];
+}
+
+function generateDeck(settings) {
+  const { range, copies, includeSpecial } = settings;
+  const deck = [];
+  for (let n = 1; n <= range; n++) {
+    for (let c = 0; c < copies; c++) {
+      deck.push({ type: 'number', value: n });
+    }
+  }
+  if (includeSpecial) {
+    // 2 of each special = 10 cards
+    SPECIAL_CARDS.forEach(s => { deck.push({ ...s }); deck.push({ ...s }); });
+  }
+  return deck;
+}
+
+/* Dice-style pip patterns for 1-9 */
+const PIP_POSITIONS = {
+  1: [[0.5, 0.5]],
+  2: [[0.25, 0.25], [0.75, 0.75]],
+  3: [[0.22, 0.22], [0.5, 0.5], [0.78, 0.78]],
+  4: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]],
+  5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]],
+  6: [[0.25, 0.2], [0.75, 0.2], [0.25, 0.5], [0.75, 0.5], [0.25, 0.8], [0.75, 0.8]],
+  7: [[0.25, 0.2], [0.75, 0.2], [0.25, 0.5], [0.5, 0.5], [0.75, 0.5], [0.25, 0.8], [0.75, 0.8]],
+  8: [[0.2, 0.18], [0.5, 0.18], [0.8, 0.18], [0.2, 0.5], [0.8, 0.5], [0.2, 0.82], [0.5, 0.82], [0.8, 0.82]],
+  9: [[0.2, 0.2], [0.5, 0.2], [0.8, 0.2], [0.2, 0.5], [0.5, 0.5], [0.8, 0.5], [0.2, 0.8], [0.5, 0.8], [0.8, 0.8]]
+};
+
+function drawPips(ctx, cx, cy, boxSize, count, color) {
+  if (count < 1 || count > 9) return;
+  const pos = PIP_POSITIONS[count];
+  const r = boxSize * 0.07;
+  ctx.fillStyle = color;
+  pos.forEach(([px, py]) => {
+    ctx.beginPath();
+    ctx.arc(cx - boxSize/2 + px * boxSize, cy - boxSize/2 + py * boxSize, r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawNumberCard(ctx, x, y, w, h, card, style, u) {
+  // Determine colors
+  let bgColor = '#fcfaf3';
+  let accent = '#2a2622';
+  let textColor = '#18181b';
+  let groupLabel = null;
+
+  if (card.type === 'number' && style === 'color') {
+    const g = getColorGroup(card.value);
+    bgColor = g.bg;
+    accent = g.accent;
+    textColor = g.accent;
+    groupLabel = g.label;
+  } else if (card.type === 'special') {
+    bgColor = '#fef3d4';
+    accent = '#92520c';
+    textColor = '#92520c';
+  }
+
+  // Background
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(x, y, w, h);
+
+  // Outer frame
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 1.4 * u;
+  ctx.strokeRect(x + 0.7*u, y + 0.7*u, w - 1.4*u, h - 1.4*u);
+
+  // Inner accent line
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.25;
+  ctx.lineWidth = 0.4 * u;
+  ctx.strokeRect(x + 5*u, y + 5*u, w - 10*u, h - 10*u);
+  ctx.globalAlpha = 1;
+
+  const padX = 9 * u;
+  const padY = 8 * u;
+
+  if (card.type === 'number') {
+    const num = String(card.value);
+
+    // Top-left corner index
+    ctx.fillStyle = accent;
+    ctx.font = `700 ${15*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(num, x + padX, y + padY);
+
+    // Bottom-right corner index (mirrored visually)
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(num, x + w - padX, y + h - padY);
+
+    // Center big number
+    const bigSize = Math.min(w, h) * 0.48;
+    ctx.fillStyle = textColor;
+    ctx.font = `900 ${bigSize}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(num, x + w/2, y + h/2);
+
+    // Dice pips (top-right & bottom-left) for dots style, 1-9 only
+    if (style === 'dots' && card.value >= 1 && card.value <= 9) {
+      const pipBoxSize = Math.min(w, h) * 0.22;
+      drawPips(ctx, x + w - padX - pipBoxSize/2 - 2*u, y + padY + pipBoxSize/2 + 4*u, pipBoxSize, card.value, accent);
+      drawPips(ctx, x + padX + pipBoxSize/2 + 2*u, y + h - padY - pipBoxSize/2 - 4*u, pipBoxSize, card.value, accent);
+    }
+
+    // Group label for color style
+    if (groupLabel) {
+      ctx.fillStyle = accent;
+      ctx.globalAlpha = 0.85;
+      ctx.font = `700 ${9*u}px "Noto Sans TC", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${groupLabel} 組`, x + w/2, y + padY);
+      ctx.globalAlpha = 1;
+    }
+  } else if (card.type === 'special') {
+    // Big symbol in center
+    const bigSize = Math.min(w, h) * 0.42;
+    ctx.fillStyle = textColor;
+    ctx.font = `900 ${bigSize}px "Noto Serif TC", "Songti TC", serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(card.symbol, x + w/2, y + h/2 - bigSize * 0.18);
+
+    // Label below symbol
+    ctx.font = `700 ${17*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillText(card.label, x + w/2, y + h/2 + bigSize * 0.42);
+
+    // Corner symbols
+    ctx.font = `700 ${13*u}px "Noto Serif TC", serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.symbol, x + padX, y + padY);
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(card.symbol, x + w - padX, y + h - padY);
+  }
+
+  // Small attribution at very bottom
+  ctx.fillStyle = card.type === 'special' ? '#92520c' : '#a39c8a';
+  ctx.globalAlpha = card.type === 'special' ? 0.55 : 0.8;
+  ctx.font = `400 ${6.5*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('愛迪樂 ｜ 鍾孟修 OT', x + w/2, y + h - 2.5*u);
+  ctx.globalAlpha = 1;
+}
+
+function drawCutMarksAt(ctx, x, y, w, h, u) {
+  const len = 6 * u;
+  const off = 3 * u;
+  ctx.strokeStyle = '#9a8f76';
+  ctx.lineWidth = 0.5 * u;
+  ctx.beginPath();
+  // Top-left
+  ctx.moveTo(x - len - off, y); ctx.lineTo(x - off, y);
+  ctx.moveTo(x, y - len - off); ctx.lineTo(x, y - off);
+  // Top-right
+  ctx.moveTo(x + w + off, y); ctx.lineTo(x + w + len + off, y);
+  ctx.moveTo(x + w, y - len - off); ctx.lineTo(x + w, y - off);
+  // Bottom-left
+  ctx.moveTo(x - len - off, y + h); ctx.lineTo(x - off, y + h);
+  ctx.moveTo(x, y + h + off); ctx.lineTo(x, y + h + len + off);
+  // Bottom-right
+  ctx.moveTo(x + w + off, y + h); ctx.lineTo(x + w + len + off, y + h);
+  ctx.moveTo(x + w, y + h + off); ctx.lineTo(x + w, y + h + len + off);
+  ctx.stroke();
+}
+
+function renderDeckPage(canvas, deck, pageNo, pageTotal, opts) {
+  const { style, scale = 2 } = opts;
+  const W = 595 * scale;
+  const H = 842 * scale;
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = '595px';
+  canvas.style.height = '842px';
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const u = scale;
+  const cols = 3, rows = 3;
+  const cardsPerPage = 9;
+  const pageMargin = 30 * u;
+  const gap = 14 * u;
+  const cardW = (W - 2 * pageMargin - (cols - 1) * gap) / cols;
+  const cardH = (H - 2 * pageMargin - (rows - 1) * gap) / rows;
+
+  // Page header
+  ctx.fillStyle = '#5e5a52';
+  ctx.font = `500 ${9*u}px "Noto Sans TC", sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'top';
+  ctx.fillText(`數字牌組 ‧ 第 ${pageNo} / ${pageTotal} 頁`, W - 16*u, 12*u);
+
+  // Draw cards
+  const startIdx = (pageNo - 1) * cardsPerPage;
+  for (let i = 0; i < cardsPerPage; i++) {
+    const cardIdx = startIdx + i;
+    if (cardIdx >= deck.length) break;
+    const r = Math.floor(i / cols);
+    const c = i % cols;
+    const cardX = pageMargin + c * (cardW + gap);
+    const cardY = pageMargin + r * (cardH + gap);
+    drawNumberCard(ctx, cardX, cardY, cardW, cardH, deck[cardIdx], style, u);
+    drawCutMarksAt(ctx, cardX, cardY, cardW, cardH, u);
+  }
+
+  // Footer
+  ctx.fillStyle = '#b8ad94';
+  ctx.font = `400 ${8*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('數字牌卡組 ｜ 設計者：愛迪樂 鍾孟修 職能治療師', W/2, H - 14*u);
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
+  let line = '';
+  let cy = y;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '\n') {
+      ctx.fillText(line, x, cy);
+      line = '';
+      cy += lineHeight;
+      continue;
+    }
+    const test = line + ch;
+    if (ctx.measureText(test).width > maxWidth && line.length > 0) {
+      ctx.fillText(line, x, cy);
+      line = ch;
+      cy += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, cy);
+    cy += lineHeight;
+  }
+  return cy;
+}
+
+const GAMES = [
+  {
+    title: '搶數字',
+    meta: '人數 2-6 ‧ 年齡 4+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放桌面。主持人喊出一個數字，最先正確拿到該卡的玩家得 1 分。約定時間後，分數最高者獲勝。'
+  },
+  {
+    title: '對對碰',
+    meta: '人數 1-4 ‧ 年齡 4+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
+    desc: '所有牌正面朝下排列。玩家輪流翻 2 張，數字相同則取走這對牌並再翻一次；不同則翻回，換下一位。全部配對完，牌最多者獲勝。'
+  },
+  {
+    title: '大小比一比',
+    meta: '人數 2-6 ‧ 年齡 4+ ‧ 5-10 分鐘',
+    desc: '牌堆中央朝下，每人同時翻一張，數字最大者贏走這輪所有牌。牌堆翻完，獲得牌最多者獲勝。可加變化：最小者贏。'
+  },
+  {
+    title: '算術搶答',
+    meta: '人數 2-6 ‧ 年齡 6+ ‧ 5-15 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊一道算式（如「3+5」），最先拿到答案卡（8）的玩家得 1 分。進階版可用兩步算式「5+3-2」。'
+  },
+  {
+    title: '找鄰居',
+    meta: '人數 1-4 ‧ 年齡 5+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊一個數字（如 10），玩家要找出 ±1（9 和 11）。可變化為 ±2、±3、或倍數關係（5 的倍數）。'
+  },
+  {
+    title: '排序接龍',
+    meta: '人數 2-4 ‧ 年齡 5+ ‧ 10-15 分鐘',
+    desc: '每人發 5 張，剩餘牌堆放中央，翻最上面 1 張作起始。玩家輪流出比起始牌「大或小 1」的牌；無法出則抽 1 張並換下一位。先出完手牌者獲勝。'
+  }
+];
+
+function drawRulesPage(canvas, opts) {
+  const { scale = 2, includeSpecial } = opts;
+  const W = 595 * scale;
+  const H = 842 * scale;
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = '595px';
+  canvas.style.height = '842px';
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const u = scale;
+  const margin = 44 * u;
+
+  // Title
+  ctx.fillStyle = '#2a2622';
+  ctx.font = `700 ${24*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('數字牌卡 ‧ 遊戲玩法', margin, margin);
+
+  // Subtitle
+  ctx.fillStyle = '#5e5a52';
+  ctx.font = `400 ${11*u}px "Noto Sans TC", sans-serif`;
+  ctx.fillText('六種玩法 ‧ 適用兒童 / 長者 / 認知復健', margin, margin + 30*u);
+
+  // Divider
+  ctx.strokeStyle = '#c9bea4';
+  ctx.lineWidth = 0.8 * u;
+  ctx.beginPath();
+  ctx.moveTo(margin, margin + 52*u);
+  ctx.lineTo(W - margin, margin + 52*u);
+  ctx.stroke();
+
+  // Two-column layout for games (3 per column)
+  const colWidth = (W - 2*margin - 24*u) / 2;
+  const colX = [margin, margin + colWidth + 24*u];
+
+  let cursorY = [margin + 70*u, margin + 70*u];
+
+  GAMES.forEach((g, i) => {
+    const col = i % 2;
+    const x = colX[col];
+    let y = cursorY[col];
+
+    // Title with marker
+    ctx.fillStyle = '#2c6e6a';
+    ctx.font = `900 ${10*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`遊戲 ${i + 1}`, x, y);
+
+    ctx.fillStyle = '#2a2622';
+    ctx.font = `700 ${15*u}px "Noto Serif TC", serif`;
+    ctx.fillText(g.title, x + 38*u, y - 2*u);
+    y += 20*u;
+
+    // Meta
+    ctx.fillStyle = '#8a847a';
+    ctx.font = `500 ${9.5*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillText(g.meta, x, y);
+    y += 16*u;
+
+    // Description
+    ctx.fillStyle = '#2a2622';
+    ctx.font = `400 ${11*u}px "Noto Sans TC", sans-serif`;
+    y = drawWrappedText(ctx, g.desc, x, y, colWidth, 17*u);
+    y += 16*u;
+
+    cursorY[col] = y;
+  });
+
+  // Specials section
+  let specialsY = Math.max(cursorY[0], cursorY[1]) + 12*u;
+  if (includeSpecial) {
+    ctx.strokeStyle = '#c9bea4';
+    ctx.lineWidth = 0.5 * u;
+    ctx.beginPath();
+    ctx.moveTo(margin, specialsY);
+    ctx.lineTo(W - margin, specialsY);
+    ctx.stroke();
+    specialsY += 16*u;
+
+    ctx.fillStyle = '#92520c';
+    ctx.font = `700 ${14*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('特殊牌用法', margin, specialsY);
+    specialsY += 22*u;
+
+    SPECIAL_CARDS.forEach(s => {
+      ctx.fillStyle = '#92520c';
+      ctx.font = `700 ${13*u}px "Noto Serif TC", serif`;
+      ctx.fillText(s.symbol, margin, specialsY);
+      ctx.font = `700 ${11*u}px "Noto Sans TC", sans-serif`;
+      ctx.fillText(s.label, margin + 28*u, specialsY + 2*u);
+      ctx.fillStyle = '#5e5a52';
+      ctx.font = `400 ${10.5*u}px "Noto Sans TC", sans-serif`;
+      ctx.fillText('—  ' + s.desc, margin + 70*u, specialsY + 2*u);
+      specialsY += 18*u;
+    });
+    specialsY += 8*u;
+  }
+
+  // OT tips block at bottom
+  const tipsY = Math.max(specialsY, H - margin - 80*u);
+  ctx.fillStyle = '#e0eceb';
+  ctx.fillRect(margin, tipsY, W - 2*margin, 60*u);
+  ctx.fillStyle = '#1f5350';
+  ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('🩺  OT 治療師訣竅', margin + 12*u, tipsY + 10*u);
+  ctx.fillStyle = '#1f5350';
+  ctx.font = `500 ${10*u}px "Noto Sans TC", sans-serif`;
+  ctx.fillText('兒童：數感建立、視覺搜尋、輪流等待　／　長者：短期記憶、處理速度、注意力切換', margin + 12*u, tipsY + 30*u);
+  ctx.fillText('中風復健：精細抓握、視覺掃描　／　失智症：常識喚回、社交互動', margin + 12*u, tipsY + 45*u);
+
+  // Footer
+  ctx.fillStyle = '#908b7d';
+  ctx.font = `500 ${10*u}px "Noto Serif TC", serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('設計者 ｜ 愛迪樂 鍾孟修 職能治療師', W/2, H - 20*u);
+}
+
+function getDeckPages(deck) {
+  return Math.ceil(deck.length / 9);
+}
+
+function renderDeckPreview() {
+  const canvas = $('deckPreviewCanvas');
+  const deck = generateDeck(state.cards);
+  const pages = getDeckPages(deck);
+  renderDeckPage(canvas, deck, 1, pages, { style: state.cards.style, scale: 1.5 });
+  updateDeckSummary(deck, pages);
+}
+
+function updateDeckSummary(deck, pages) {
+  const total = deck.length;
+  const styleLabel = { plain: '純數字', dots: '數字+點數', color: '彩色分組' }[state.cards.style];
+  let summary = `共 ${total} 張`;
+  if (state.cards.includeSpecial) summary += `（含 10 張特殊牌）`;
+  summary += ` ‧ ${pages} 頁`;
+  if (state.cards.includeRules) summary += ` + 規則頁 1 頁`;
+  $('deckSummary').querySelector('.deck-summary-text').textContent = summary;
+  $('deckPreviewMeta').textContent =
+    `1-${state.cards.range} × ${state.cards.copies} 份 ‧ ${styleLabel} ‧ 共 ${total} 張`;
+}
+
+function downloadDeckPDF() {
+  const btn = $('deckDownloadBtn');
+  btn.disabled = true;
+  btn.textContent = '生成中…';
+  setTimeout(() => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+      const tmp = document.createElement('canvas');
+      const deck = generateDeck(state.cards);
+      const pages = getDeckPages(deck);
+      for (let p = 1; p <= pages; p++) {
+        renderDeckPage(tmp, deck, p, pages, { style: state.cards.style, scale: 2 });
+        const imgData = tmp.toDataURL('image/png');
+        if (p > 1) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
+      }
+      if (state.cards.includeRules) {
+        drawRulesPage(tmp, { scale: 2, includeSpecial: state.cards.includeSpecial });
+        const imgData = tmp.toDataURL('image/png');
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
+      }
+      const styleTag = { plain: '純數字', dots: '點數', color: '彩色' }[state.cards.style];
+      const filename = `數字牌組_1-${state.cards.range}_${state.cards.copies}份_${styleTag}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error(err);
+      alert('PDF 生成失敗：' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '下載完整牌組 PDF';
+    }
+  }, 60);
+}
+
+function browserPrintDeck() {
+  const area = $('printArea');
+  area.innerHTML = '';
+  const tmp = document.createElement('canvas');
+  const deck = generateDeck(state.cards);
+  const pages = getDeckPages(deck);
+  const totalPages = pages + (state.cards.includeRules ? 1 : 0);
+  let pageCount = 0;
+  for (let p = 1; p <= pages; p++) {
+    renderDeckPage(tmp, deck, p, pages, { style: state.cards.style, scale: 2 });
+    const img = new Image();
+    img.src = tmp.toDataURL('image/png');
+    img.style.width = '210mm';
+    img.style.height = '297mm';
+    img.style.display = 'block';
+    pageCount++;
+    if (pageCount < totalPages) img.style.pageBreakAfter = 'always';
+    area.appendChild(img);
+  }
+  if (state.cards.includeRules) {
+    drawRulesPage(tmp, { scale: 2, includeSpecial: state.cards.includeSpecial });
+    const img = new Image();
+    img.src = tmp.toDataURL('image/png');
+    img.style.width = '210mm';
+    img.style.height = '297mm';
+    img.style.display = 'block';
+    area.appendChild(img);
+  }
+  setTimeout(() => window.print(), 250);
+}
+
+/* ============================================================
+   PRINT SETTINGS
+   ============================================================ */
+function updateQuantity(delta) {
+  const next = state.print.quantity + delta;
+  if (next < 1 || next > 10) return;
+  state.print.quantity = next;
+  $('qtyValue').textContent = next;
+  $('qtyMinus').disabled = next <= 1;
+  $('qtyPlus').disabled = next >= 10;
+  renderPreview();
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init() {
+  // Tab bindings
+  document.querySelectorAll('.tab').forEach(b => {
+    b.addEventListener('click', () => setTab(b.dataset.tab));
+  });
+  // Mode bindings
+  $('modeSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { if (!b.disabled) setMode(b.dataset.mode); });
+  });
+  // Size bindings
+  $('sizeSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => { if (!b.disabled) setSize(parseInt(b.dataset.size, 10)); });
+  });
+  // Seed
+  $('seedInput').addEventListener('change', (e) => setSeed(e.target.value));
+  $('seedInput').addEventListener('blur', (e) => setSeed(e.target.value));
+  $('newSeedBtn').addEventListener('click', () => setSeed(randomSeed()));
+  // Practice
+  $('startBtn').addEventListener('click', startPractice);
+  $('restartBtn').addEventListener('click', startPractice);
+  $('newPuzzleBtn').addEventListener('click', () => {
+    setSeed(randomSeed());
+    startPractice();
+  });
+  $('exitBtn').addEventListener('click', resetPracticeUI);
+  // Print
+  $('qtyMinus').addEventListener('click', () => updateQuantity(-1));
+  $('qtyPlus').addEventListener('click', () => updateQuantity(1));
+  $('includeRecord').addEventListener('change', (e) => {
+    state.print.includeRecord = e.target.checked;
+    renderPreview();
+  });
+  $('includeInstr').addEventListener('change', (e) => {
+    state.print.includeInstr = e.target.checked;
+    renderPreview();
+  });
+  $('refreshPreview').addEventListener('click', renderPreview);
+  $('downloadPdfBtn').addEventListener('click', downloadPDF);
+  $('browserPrintBtn').addEventListener('click', browserPrint);
+
+  // Cards (number deck)
+  $('deckRangeSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      state.cards.range = parseInt(b.dataset.range, 10);
+      $('deckRangeSeg').querySelectorAll('button').forEach(x =>
+        x.classList.toggle('on', x === b));
+      renderDeckPreview();
+    });
+  });
+  $('deckCopiesSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      state.cards.copies = parseInt(b.dataset.copies, 10);
+      $('deckCopiesSeg').querySelectorAll('button').forEach(x =>
+        x.classList.toggle('on', x === b));
+      renderDeckPreview();
+    });
+  });
+  $('deckStyleSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      state.cards.style = b.dataset.style;
+      $('deckStyleSeg').querySelectorAll('button').forEach(x =>
+        x.classList.toggle('on', x === b));
+      const hints = {
+        plain: '大數字為主，視覺清晰',
+        dots: '數字加骰子點數，幫助幼兒建立數感',
+        color: '依十位數分色，方便分組與分類遊戲'
+      };
+      $('deckStyleHint').textContent = hints[state.cards.style];
+      renderDeckPreview();
+    });
+  });
+  $('deckSpecial').addEventListener('change', (e) => {
+    state.cards.includeSpecial = e.target.checked;
+    renderDeckPreview();
+  });
+  $('deckRules').addEventListener('change', (e) => {
+    state.cards.includeRules = e.target.checked;
+    renderDeckPreview();
+  });
+  $('deckRefreshBtn').addEventListener('click', renderDeckPreview);
+  $('deckDownloadBtn').addEventListener('click', downloadDeckPDF);
+  $('deckPrintBtn').addEventListener('click', browserPrintDeck);
+
+  // Initial state
+  $('modeDesc').innerHTML = MODE_DESC[state.mode];
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+// expose for debug
+window.__schulte = { state, generatePuzzle, mulberry32 };
+</script>
+</body>
+</html>
