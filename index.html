@@ -1569,7 +1569,7 @@ function drawMarkerSection(ctx, puzzle, x, y, W, u) {
 
   ctx.fillStyle = '#8a847a';
   ctx.font = `400 ${10*u}px "Noto Sans TC", sans-serif`;
-  ctx.fillText('（找到數字後請塗滿或圈出該圈）', x + 60*u, y + 2*u);
+  ctx.fillText('（找到後直接圈選方格內數字，或在下方圈起對應圓點）', x + 60*u, y + 2*u);
 
   let cursor = y + 20 * u;
   const maxWidth = W - 2 * x;
@@ -1736,25 +1736,45 @@ const PACK_INFO = {
   color: {
     label: '彩色分組',
     tagline: '分類 ‧ 配色 ‧ UNO 風格',
-    desc: '<strong>適合：</strong>找同色、分組大集合、顏色接龍、彩虹挑戰、顏色記憶、顏色比一比等以「分類顏色」為核心的玩法。'
+    desc: '<strong>適合：</strong>找同色、顏色搶答、顏色接龍、彩虹挑戰、顏色記憶、快速分類等以「分類顏色」為核心的玩法。'
   }
 };
 
 /* ----- Pack-specific SPECIAL CARDS ----- */
 const PLAIN_SPECIALS = [
-  { type: 'special', pack: 'plain', value: 'wild',  label: '萬用', symbol: '萬',  desc: '可代替任何數字使用（例如配對、接龍時）' },
-  { type: 'special', pack: 'plain', value: 'plus5', label: '加 5', symbol: '+5', desc: '搭配一張手牌，把該牌數字 +5 後使用' },
-  { type: 'special', pack: 'plain', value: 'minus3',label: '減 3', symbol: '−3', desc: '搭配一張手牌，把該牌數字 -3 後使用' },
-  { type: 'special', pack: 'plain', value: 'swap', label: '交換', symbol: '換',  desc: '與其他玩家交換一張手牌或桌面一張牌' },
-  { type: 'special', pack: 'plain', value: 'chall',label: '挑戰', symbol: '挑',  desc: '指定一位玩家回答一題（主持人出），答對加分' }
+  { type: 'special', pack: 'plain', value: 'wild',  label: '萬用', symbol: '萬',
+    desc: '可代替任何數字使用',
+    games: ['對對碰', '排序接龍', '找鄰居', '缺一不可'] },
+  { type: 'special', pack: 'plain', value: 'plus5', label: '加 5', symbol: '+5',
+    desc: '搭配一張手牌，把該牌數字 +5 後使用',
+    games: ['算術搶答', '排序接龍', '倍數搶'] },
+  { type: 'special', pack: 'plain', value: 'minus3',label: '減 3', symbol: '−3',
+    desc: '搭配一張手牌，把該牌數字 -3 後使用',
+    games: ['算術搶答', '排序接龍', '倍數搶'] },
+  { type: 'special', pack: 'plain', value: 'swap', label: '交換', symbol: '換',
+    desc: '與其他玩家交換一張手牌',
+    games: ['排序接龍', '對對碰'] },
+  { type: 'special', pack: 'plain', value: 'chall',label: '挑戰', symbol: '挑',
+    desc: '指定一位玩家答一題（主持人出題），答對加分',
+    games: ['通用'] }
 ];
 
 const COLOR_SPECIALS = [
-  { type: 'special', pack: 'color', value: 'change',  label: '變色', symbol: '變', desc: '改變當前進行的顏色組（用於顏色接龍等）' },
-  { type: 'special', pack: 'color', value: 'wild',    label: '萬色', symbol: '全', desc: '可代替任何顏色組使用（萬用色卡）' },
-  { type: 'special', pack: 'color', value: 'skip',    label: '禁色', symbol: '禁', desc: '指定下家不能出該顏色組，需跳過或換色' },
-  { type: 'special', pack: 'color', value: 'reverse', label: '倒序', symbol: '反', desc: '反轉目前的出牌順序方向' },
-  { type: 'special', pack: 'color', value: 'collect', label: '全收', symbol: '收', desc: '從桌面或棄牌堆收走指定顏色組所有牌' }
+  { type: 'special', pack: 'color', value: 'change',  label: '變色', symbol: '變',
+    desc: '改變當前進行的顏色組（接龍中宣告新色）',
+    games: ['顏色接龍'] },
+  { type: 'special', pack: 'color', value: 'wild',    label: '萬色', symbol: '全',
+    desc: '可代替任何顏色組使用（萬用色卡）',
+    games: ['找同色', '顏色接龍', '彩虹挑戰', '顏色記憶'] },
+  { type: 'special', pack: 'color', value: 'skip',    label: '禁色', symbol: '禁',
+    desc: '指定下家不能出該顏色組，需跳過或換色',
+    games: ['顏色接龍'] },
+  { type: 'special', pack: 'color', value: 'reverse', label: '倒序', symbol: '反',
+    desc: '反轉目前的出牌或挑卡順序方向',
+    games: ['顏色接龍', '彩虹挑戰'] },
+  { type: 'special', pack: 'color', value: 'collect', label: '全收', symbol: '收',
+    desc: '從桌面收走指定顏色組所有牌（直接拿到手）',
+    games: ['找同色', '顏色記憶'] }
 ];
 
 /* ----- Pack-specific GAMES (rules sheets) ----- */
@@ -1768,8 +1788,8 @@ const PLAIN_GAMES = [
     desc: '所有牌正面朝上散放。主持人喊算式（如「3+5」），最先拿到答案卡（8）的玩家得 1 分。進階版可用兩步算式。'
   },
   {
-    title: '大小比一比', meta: '人數 2-6 ‧ 4+ ‧ 5-10 分鐘',
-    desc: '牌堆中央朝下，每人同時翻一張，數字最大者贏走這輪所有牌。變化版：改為最小者贏，訓練反向思考。'
+    title: '缺一不可', meta: '人數 2-6 ‧ 5+ ‧ 5-10 分鐘',
+    desc: '主持人抽出 10 張連續數字（如 1-10）並暗中藏起一張，其餘 9 張正面朝上散放。玩家最先說出缺失的數字者得 1 分。可加大範圍至 20 張提高挑戰。訓練快速掃描與短期記憶。'
   },
   {
     title: '排序接龍', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
@@ -1777,53 +1797,83 @@ const PLAIN_GAMES = [
   },
   {
     title: '對對碰', meta: '人數 1-4 ‧ 4+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
-    desc: '所有牌正面朝下排列。輪流翻 2 張，數字相同則取走這對牌並再翻；不同則翻回。全部配對完，牌最多者獲勝。'
+    desc: '所有牌正面朝下排列。輪流翻 2 張，數字相同則取走這對牌並再翻；不同則翻回。全部配對完，牌最多者獲勝。',
+    requires: { minCopies: 2 }
   },
   {
     title: '找鄰居', meta: '人數 1-4 ‧ 5+ ‧ 5-10 分鐘',
     desc: '所有牌正面朝上散放。主持人喊一個數字（如 10），玩家要找出 ±1（9 和 11）。可變化為 ±2、±3、或倍數關係。'
+  },
+  {
+    title: '倍數搶', meta: '人數 2-6 ‧ 7+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊一個基準數（如 5），玩家最快收齊該數所有倍數（5、10、15、20...）者得分。可變化：找因數、找平方數。範圍越大越好玩。',
+    alternateFor: '對對碰'
   }
 ];
 
 const COLOR_GAMES = [
   {
     title: '找同色', meta: '人數 1-4 ‧ 4+ ‧ 5-10 分鐘',
-    desc: '所有牌正面朝上散放。主持人喊一個顏色組（如「藍色 20-29」），玩家最快收齊該色所有卡片者勝。訓練分類速度。'
+    desc: '所有牌正面朝上散放。主持人喊一個顏色（如「黃色」），玩家最快將該色所有卡片收齊者得 1 分。訓練分類速度與顏色辨識。'
   },
   {
-    title: '分組大集合', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
-    desc: '每人發 7 張，剩餘放中央當補抽堆。輪流抽一張並丟一張，目標是手上湊齊「同一顏色組的完整一套」者勝。'
+    title: '顏色搶答', meta: '人數 2-6 ‧ 5+ ‧ 5-10 分鐘',
+    desc: '主持人翻一張數字牌約 1-2 秒後蓋住（或只喊數字不出牌），玩家最快說出該牌所屬顏色組者得 1 分。可反向：說顏色、答數字範圍。訓練數字-顏色連結。'
   },
   {
     title: '顏色接龍', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
-    desc: '類 UNO 玩法。每人 7 張，翻最上面一張作起始。出牌必須「同色組」才能接。無法出則抽一張。先出完手牌者勝。'
+    desc: '每人發 5 張，剩餘牌堆放中央，翻最上面一張作起始。輪流出與起始牌「同色組」的牌；無法出則從牌堆抽一張，下一位繼續。先出完手牌者勝。'
   },
   {
     title: '彩虹挑戰', meta: '人數 2-6 ‧ 4+ ‧ 5-10 分鐘',
-    desc: '所有牌朝上散放。玩家輪流挑一張，目標是「每個顏色組各收集一張」最先湊齊全色者勝。考驗分類記憶。'
+    desc: '所有牌正面朝上散放。玩家輪流挑一張，目標是收集到每個顏色組各一張。最先湊齊全色者勝。1-20 以上配置（4 色以上）最具挑戰。'
   },
   {
     title: '顏色記憶', meta: '人數 1-4 ‧ 5+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
-    desc: '所有牌朝下排列。翻 2 張，必須「同色組且同數字」才算配對（最高難度）。或簡化為「同色組」即可配對。'
+    desc: '所有牌正面朝下排列。輪流翻 2 張，必須「同色組且同數字」才算配對。配對最多者勝。最考驗短期記憶與顏色辨識。',
+    requires: { minCopies: 2 }
   },
   {
-    title: '顏色比一比', meta: '人數 2-4 ‧ 4+ ‧ 5-10 分鐘',
-    desc: '每人指定一個顏色組為自己領地。從牌堆翻牌，符合自己領地顏色的歸己。輪數後加總點數，最高者勝。'
+    title: '快速分類', meta: '人數 1-4 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '所有牌混合散放桌面。玩家比賽將牌依顏色組分成各堆，最快完成且正確者勝。範圍越大顏色越多越具挑戰，可單人計時挑戰。'
+  },
+  {
+    title: '顏色排序', meta: '人數 1-4 ‧ 5+ ‧ 3-5 分鐘',
+    desc: '每位玩家分得一個顏色組的所有牌（如「紅色 6-10」共 5 張）。最快將手牌依數字小到大排列者勝。可單人計時挑戰，或多人各持一色競速。',
+    alternateFor: '顏色記憶'
   }
 ];
 
-/* ----- Color groups (for visual styling) ----- */
-const COLOR_GROUPS = [
-  { range: [1, 9],   bg: '#fef3c7', accent: '#b45309', label: '1-9' },
-  { range: [10, 19], bg: '#fee2e2', accent: '#b91c1c', label: '10-19' },
-  { range: [20, 29], bg: '#dbeafe', accent: '#1d4ed8', label: '20-29' },
-  { range: [30, 39], bg: '#dcfce7', accent: '#15803d', label: '30-39' },
-  { range: [40, 49], bg: '#f3e8ff', accent: '#6d28d9', label: '40-49' },
-  { range: [50, 99], bg: '#ffedd5', accent: '#c2410c', label: '50+' }
+/* ----- Color groups (range-aware, balanced) ----- */
+const COLOR_PALETTE = [
+  { bg: '#fef3c7', accent: '#b45309', name: '黃' },   // yellow
+  { bg: '#fee2e2', accent: '#b91c1c', name: '紅' },   // red
+  { bg: '#dbeafe', accent: '#1d4ed8', name: '藍' },   // blue
+  { bg: '#dcfce7', accent: '#15803d', name: '綠' },   // green
+  { bg: '#f3e8ff', accent: '#6d28d9', name: '紫' }    // purple
 ];
 
-function getColorGroup(num) {
-  return COLOR_GROUPS.find(g => num >= g.range[0] && num <= g.range[1]) || COLOR_GROUPS[0];
+const RANGE_GROUPS = {
+  10: { groupSize: 5,  count: 2 },   // 1-5, 6-10
+  20: { groupSize: 5,  count: 4 },   // 1-5, 6-10, 11-15, 16-20
+  30: { groupSize: 10, count: 3 },   // 1-10, 11-20, 21-30
+  50: { groupSize: 10, count: 5 }    // 1-10, 11-20, 21-30, 31-40, 41-50
+};
+
+function getColorGroup(num, range) {
+  const cfg = RANGE_GROUPS[range] || RANGE_GROUPS[50];
+  const idx = Math.min(Math.floor((num - 1) / cfg.groupSize), cfg.count - 1);
+  const palette = COLOR_PALETTE[idx];
+  const start = idx * cfg.groupSize + 1;
+  const end = Math.min(start + cfg.groupSize - 1, range);
+  return {
+    bg: palette.bg,
+    accent: palette.accent,
+    name: palette.name,
+    label: `${start}-${end}`,
+    range: [start, end],
+    idx
+  };
 }
 
 /* ----- Generate the full deck ----- */
@@ -1844,7 +1894,7 @@ function generateDeck(settings) {
 
 /* ----- Draw a single card ----- */
 function drawNumberCard(ctx, x, y, w, h, card, settings, u) {
-  const { pack } = settings;
+  const { pack, range } = settings;
   let bgColor = '#fcfaf3';
   let accent = '#2a2622';
   let textColor = '#18181b';
@@ -1852,11 +1902,11 @@ function drawNumberCard(ctx, x, y, w, h, card, settings, u) {
 
   if (card.type === 'number') {
     if (pack === 'color') {
-      const g = getColorGroup(card.value);
+      const g = getColorGroup(card.value, range);
       bgColor = g.bg;
       accent = g.accent;
       textColor = g.accent;
-      groupLabel = g.label;
+      groupLabel = `${g.name}色 ${g.label}`;
     }
   } else if (card.type === 'special') {
     if (card.pack === 'plain') {
@@ -1911,14 +1961,14 @@ function drawNumberCard(ctx, x, y, w, h, card, settings, u) {
     ctx.textBaseline = 'middle';
     ctx.fillText(num, x + w/2, y + h/2);
 
-    // Group label (color pack only)
+    // Group label (color pack only) — shows "紅色 6-10" style for clarity
     if (groupLabel) {
       ctx.fillStyle = accent;
       ctx.globalAlpha = 0.85;
       ctx.font = `700 ${9*u}px "Noto Sans TC", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(`${groupLabel} 組`, x + w/2, y + padY);
+      ctx.fillText(groupLabel, x + w/2, y + padY);
       ctx.globalAlpha = 1;
     }
   } else if (card.type === 'special') {
@@ -2049,9 +2099,25 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
   return cy;
 }
 
+function filterGamesByConfig(games, settings) {
+  const passesRequires = g =>
+    !g.requires || !g.requires.minCopies || settings.copies >= g.requires.minCopies;
+  return games.filter(g => {
+    if (!passesRequires(g)) return false;
+    // Alternate games are only shown when their target was filtered out
+    if (g.alternateFor) {
+      const target = games.find(x => x.title === g.alternateFor);
+      if (target && passesRequires(target)) return false;
+    }
+    return true;
+  });
+}
+
 function drawRulesPage(canvas, settings, scale = 2) {
   const { pack, includeSpecial } = settings;
-  const games = pack === 'plain' ? PLAIN_GAMES : COLOR_GAMES;
+  const allGames = pack === 'plain' ? PLAIN_GAMES : COLOR_GAMES;
+  const games = filterGamesByConfig(allGames, settings);
+  const eligibleTitles = new Set(games.map(g => g.title));
   const specials = pack === 'plain' ? PLAIN_SPECIALS : COLOR_SPECIALS;
   const packInfo = PACK_INFO[pack];
 
@@ -2077,7 +2143,8 @@ function drawRulesPage(canvas, settings, scale = 2) {
   // Subtitle
   ctx.fillStyle = '#5e5a52';
   ctx.font = `400 ${11*u}px "Noto Sans TC", sans-serif`;
-  ctx.fillText(`${packInfo.tagline} ‧ 六種專屬玩法`, margin, margin + 30*u);
+  const copiesNote = settings.copies >= 2 ? `（${settings.copies} 份版本）` : '（1 份版本）';
+  ctx.fillText(`${packInfo.tagline} ‧ ${games.length} 種專屬玩法 ${copiesNote}`, margin, margin + 30*u);
 
   // Divider
   ctx.strokeStyle = pack === 'plain' ? '#92520c' : '#1f5350';
@@ -2151,21 +2218,45 @@ function drawRulesPage(canvas, settings, scale = 2) {
     specialsY += 22*u;
 
     specials.forEach(s => {
+      // Filter "used in" games to only show ones in current config
+      const useableGames = (s.games || []).filter(g =>
+        g === '通用' || eligibleTitles.has(g)
+      );
+
+      // Symbol
       ctx.fillStyle = markerColor;
       ctx.font = `700 ${14*u}px "Noto Serif TC", serif`;
+      ctx.textAlign = 'left';
       ctx.fillText(s.symbol, margin + 4*u, specialsY);
+
+      // Label
       ctx.font = `700 ${11*u}px "Noto Sans TC", sans-serif`;
       ctx.fillText(s.label, margin + 32*u, specialsY + 2*u);
+
+      // Description
       ctx.fillStyle = '#5e5a52';
       ctx.font = `400 ${10.5*u}px "Noto Sans TC", sans-serif`;
-      ctx.fillText('—  ' + s.desc, margin + 78*u, specialsY + 2*u);
-      specialsY += 18*u;
+      ctx.fillText('— ' + s.desc, margin + 78*u, specialsY + 2*u);
+      specialsY += 14*u;
+
+      // Used-in games on next line (indented, smaller, colored)
+      ctx.fillStyle = markerColor;
+      ctx.globalAlpha = 0.78;
+      ctx.font = `600 ${9.5*u}px "Noto Sans TC", sans-serif`;
+      const gamesLabel = useableGames.length === 0
+        ? '用於：依玩法情境靈活使用'
+        : (useableGames.includes('通用')
+          ? '用於：通用 — 任何遊戲皆可'
+          : '用於：' + useableGames.join('、'));
+      ctx.fillText(gamesLabel, margin + 78*u, specialsY);
+      ctx.globalAlpha = 1;
+      specialsY += 16*u;
     });
-    specialsY += 6*u;
+    specialsY += 4*u;
   }
 
   // OT tips at the bottom
-  const tipsBlockH = 64*u;
+  const tipsBlockH = 60*u;
   const tipsY = Math.min(H - margin - tipsBlockH - 14*u, Math.max(specialsY + 8*u, H - margin - tipsBlockH - 14*u));
   ctx.fillStyle = pack === 'plain' ? '#fef3d4' : '#e6eef0';
   ctx.fillRect(margin, tipsY, W - 2*margin, tipsBlockH);
@@ -2182,8 +2273,8 @@ function drawRulesPage(canvas, settings, scale = 2) {
   const tip2 = pack === 'plain'
     ? '中風復健：精細抓握、視覺掃描、計算復健；失智症：常識喚回、序列保留'
     : '中風復健：視覺掃描、左右忽略訓練、分類；失智症：感官刺激、配色任務';
-  ctx.fillText(tip1, margin + 12*u, tipsY + 30*u);
-  ctx.fillText(tip2, margin + 12*u, tipsY + 47*u);
+  ctx.fillText(tip1, margin + 12*u, tipsY + 28*u);
+  ctx.fillText(tip2, margin + 12*u, tipsY + 44*u);
 
   // Footer
   ctx.fillStyle = '#908b7d';
