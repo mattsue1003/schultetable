@@ -716,6 +716,34 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* ===== Preview navigation ===== */
+.preview-nav {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.preview-nav .btn-nav {
+  padding: 8px 14px;
+  font-size: 13px;
+  min-width: 100px;
+}
+.preview-nav .btn-nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preview-page-indicator {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 14px;
+  min-width: 120px;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
 /* ===== Footer ===== */
 .footer {
   text-align: center;
@@ -886,6 +914,11 @@ body {
         <div class="field">
           <label class="field-label">其他選項</label>
           <label class="check">
+            <input type="checkbox" id="includeMarker" checked>
+            <span class="box"></span>
+            <span>加上圈選進度列（找到後圈起來）</span>
+          </label>
+          <label class="check" style="margin-top:8px;">
             <input type="checkbox" id="includeRecord" checked>
             <span class="box"></span>
             <span>附評估紀錄欄位（時間、錯誤、姓名、日期）</span>
@@ -922,6 +955,15 @@ body {
       <h2 class="card-title">數字牌組設定</h2>
       <div class="field-grid">
 
+        <div class="field" style="grid-column: 1 / -1;">
+          <label class="field-label">牌組類型（決定玩法走向）</label>
+          <div class="seg" id="deckPackSeg">
+            <button data-pack="plain" class="on">純數字組</button>
+            <button data-pack="color">彩色分組</button>
+          </div>
+          <div class="mode-desc" id="deckPackDesc" style="margin-top:10px;"></div>
+        </div>
+
         <div class="field">
           <label class="field-label">數字範圍</label>
           <div class="seg" id="deckRangeSeg">
@@ -940,17 +982,7 @@ body {
             <button data-copies="2">2 份（對對碰）</button>
             <button data-copies="4">4 份（分組）</button>
           </div>
-          <span class="field-hint">對對碰需 2 份以上才能配對</span>
-        </div>
-
-        <div class="field">
-          <label class="field-label">卡面風格</label>
-          <div class="seg" id="deckStyleSeg">
-            <button data-style="plain" class="on">純數字</button>
-            <button data-style="dots">數字+點數</button>
-            <button data-style="color">彩色分組</button>
-          </div>
-          <span class="field-hint" id="deckStyleHint">大數字為主，視覺清晰</span>
+          <span class="field-hint">對對碰、配對類玩法需 2 份以上</span>
         </div>
 
         <div class="field">
@@ -958,12 +990,12 @@ body {
           <label class="check">
             <input type="checkbox" id="deckSpecial">
             <span class="box"></span>
-            <span>加入特殊牌 ★ ↔ ✕ ×2 ?（共 10 張）</span>
+            <span id="deckSpecialLabel">加入專屬特殊牌（10 張）</span>
           </label>
           <label class="check" style="margin-top:8px;">
             <input type="checkbox" id="deckRules" checked>
             <span class="box"></span>
-            <span>附遊戲規則頁（6 種玩法）</span>
+            <span>附專屬遊戲規則頁（6 種玩法）</span>
           </label>
         </div>
 
@@ -982,10 +1014,15 @@ body {
     </section>
 
     <section class="card">
-      <h2 class="card-title">預覽（首頁）</h2>
+      <h2 class="card-title">預覽</h2>
       <div class="preview-wrap">
         <canvas class="preview-canvas" id="deckPreviewCanvas"></canvas>
         <div class="preview-meta" id="deckPreviewMeta">—</div>
+      </div>
+      <div class="preview-nav" id="deckPreviewNav">
+        <button class="btn btn-secondary btn-nav" id="deckPrevBtn">◀ 上一頁</button>
+        <span class="preview-page-indicator" id="deckPageIndicator">第 1 / 1 頁</span>
+        <button class="btn btn-secondary btn-nav" id="deckNextBtn">下一頁 ▶</button>
       </div>
     </section>
 
@@ -1031,14 +1068,16 @@ const state = {
   print: {
     quantity: 3,
     includeRecord: true,
-    includeInstr: true
+    includeInstr: true,
+    includeMarker: true
   },
   cards: {
+    pack: 'plain',        // 'plain' or 'color'
     range: 20,            // 10/20/30/50
     copies: 1,            // 1/2/4
-    style: 'plain',       // plain/dots/color
     includeSpecial: false,
-    includeRules: true
+    includeRules: true,
+    previewPage: 1        // which page is shown in preview
   },
   play: null   // populated when starting practice
 };
@@ -1352,6 +1391,7 @@ function renderToCanvas(canvas, puzzle, opts = {}) {
     pageTotal = 1,
     includeRecord = true,
     includeInstr = true,
+    includeMarker = true,
     scale = 2
   } = opts;
   // A4 portrait, 595 x 842 pt; render at scale (default 2x for clarity)
@@ -1404,8 +1444,18 @@ function renderToCanvas(canvas, puzzle, opts = {}) {
     cursorY += 28 * u;
   }
 
-  // ===== Grid =====
-  const gridSize = Math.min(W - 2 * margin, 460 * u);
+  // ===== Grid (dynamic sizing based on what's below) =====
+  const n = puzzle.size * puzzle.size;
+  const isTC = puzzle.mode === 'twocolor';
+  let gridSize = 460 * u;
+  if (includeMarker) {
+    if (isTC && n > 36) gridSize = 370 * u;          // 7x7 TC
+    else if (n > 36) gridSize = 390 * u;              // 7x7
+    else if (n > 25 || isTC) gridSize = 410 * u;      // 6x6 or any TC
+    else gridSize = 430 * u;                          // 5x5 and below
+  }
+  gridSize = Math.min(W - 2 * margin, gridSize);
+
   const gridX = (W - gridSize) / 2;
   const gridY = cursorY + 10 * u;
   const cellSize = gridSize / puzzle.size;
@@ -1433,8 +1483,15 @@ function renderToCanvas(canvas, puzzle, opts = {}) {
     ctx.fillText(String(cell.num), cx + cellSize / 2, cy + cellSize / 2);
   }
 
+  // ===== Marker section (圈選進度列) =====
+  let cursorBelow = gridY + gridSize + 22 * u;
+  if (includeMarker) {
+    cursorBelow = drawMarkerSection(ctx, puzzle, margin, cursorBelow, W, u);
+    cursorBelow += 14 * u;
+  }
+
   // ===== Record fields =====
-  let footY = gridY + gridSize + 32 * u;
+  let footY = cursorBelow;
   if (includeRecord) {
     ctx.fillStyle = '#2a2622';
     ctx.font = `700 ${13*u}px "Noto Sans TC", sans-serif`;
@@ -1470,27 +1527,29 @@ function renderToCanvas(canvas, puzzle, opts = {}) {
         fy += 28 * u;
       }
     });
-    footY = fy + 36 * u;
+    footY = fy + 32 * u;
 
-    // Observation notes box
-    ctx.fillStyle = '#2a2622';
-    ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
-    ctx.fillText('觀察備註：', margin, footY);
-    ctx.strokeStyle = '#c9bea4';
-    ctx.lineWidth = 0.6 * u;
-    const boxY = footY + 18 * u;
-    const boxH = 60 * u;
-    for (let i = 0; i < 3; i++) {
-      const ly = boxY + i * (boxH / 3);
+    // Observation notes box (only when marker NOT shown — to save space)
+    if (!includeMarker) {
+      ctx.fillStyle = '#2a2622';
+      ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
+      ctx.fillText('觀察備註：', margin, footY);
+      ctx.strokeStyle = '#c9bea4';
+      ctx.lineWidth = 0.6 * u;
+      const boxY = footY + 18 * u;
+      const boxH = 60 * u;
+      for (let i = 0; i < 3; i++) {
+        const ly = boxY + i * (boxH / 3);
+        ctx.beginPath();
+        ctx.moveTo(margin, ly);
+        ctx.lineTo(W - margin, ly);
+        ctx.stroke();
+      }
       ctx.beginPath();
-      ctx.moveTo(margin, ly);
-      ctx.lineTo(W - margin, ly);
+      ctx.moveTo(margin, boxY + boxH);
+      ctx.lineTo(W - margin, boxY + boxH);
       ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.moveTo(margin, boxY + boxH);
-    ctx.lineTo(W - margin, boxY + boxH);
-    ctx.stroke();
   }
 
   // ===== Footer signature =====
@@ -1498,6 +1557,85 @@ function renderToCanvas(canvas, puzzle, opts = {}) {
   ctx.font = `500 ${10*u}px "Noto Serif TC", serif`;
   ctx.textAlign = 'center';
   ctx.fillText('設計者 ｜ 愛迪樂 鍾孟修 職能治療師', W / 2, H - margin + 10 * u);
+}
+
+function drawMarkerSection(ctx, puzzle, x, y, W, u) {
+  // Title
+  ctx.fillStyle = '#2a2622';
+  ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('進度標記', x, y);
+
+  ctx.fillStyle = '#8a847a';
+  ctx.font = `400 ${10*u}px "Noto Sans TC", sans-serif`;
+  ctx.fillText('（找到數字後請塗滿或圈出該圈）', x + 60*u, y + 2*u);
+
+  let cursor = y + 20 * u;
+  const maxWidth = W - 2 * x;
+
+  if (puzzle.mode === 'twocolor') {
+    const reds = puzzle.targets.filter(t => t.color === 'red').map(t => t.num);
+    const blacks = puzzle.targets.filter(t => t.color === 'black').map(t => t.num);
+    cursor = drawMarkerRow(ctx, '紅', reds, '#c0392b', x, cursor, maxWidth, u);
+    cursor += 8 * u;
+    cursor = drawMarkerRow(ctx, '黑', blacks, '#18181b', x, cursor, maxWidth, u);
+  } else if (puzzle.mode === 'reverse') {
+    // Show in reverse order to match the play sequence
+    const nums = puzzle.targets.map(t => t.num);
+    cursor = drawMarkerRow(ctx, '', nums, '#18181b', x, cursor, maxWidth, u);
+  } else {
+    const nums = puzzle.targets.map(t => t.num);
+    cursor = drawMarkerRow(ctx, '', nums, '#18181b', x, cursor, maxWidth, u);
+  }
+
+  return cursor;
+}
+
+function drawMarkerRow(ctx, label, items, color, x, y, maxWidth, u) {
+  const diam = 17 * u;
+  const spacing = 23 * u;
+  const labelWidth = label ? 24 * u : 0;
+  const rowH = diam + 8 * u;
+
+  // Label
+  if (label) {
+    ctx.fillStyle = color;
+    ctx.font = `700 ${13*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y + diam/2);
+  }
+
+  const startX = x + labelWidth;
+  const availWidth = maxWidth - labelWidth;
+  const perRow = Math.max(1, Math.floor(availWidth / spacing));
+
+  let row = 0;
+  items.forEach((num, i) => {
+    row = Math.floor(i / perRow);
+    const col = i % perRow;
+    const cx = startX + col * spacing + spacing/2;
+    const cy = y + row * rowH + diam/2;
+
+    // Empty circle
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.7 * u;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.arc(cx, cy, diam/2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Number inside circle
+    ctx.fillStyle = color;
+    ctx.font = `500 ${10*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(num), cx, cy);
+  });
+
+  return y + (row + 1) * rowH;
 }
 
 function renderPreview() {
@@ -1508,6 +1646,7 @@ function renderPreview() {
     pageTotal: state.print.quantity,
     includeRecord: state.print.includeRecord,
     includeInstr: state.print.includeInstr,
+      includeMarker: state.print.includeMarker,
     scale: 1.5
   });
   $('previewMeta').textContent =
@@ -1533,6 +1672,7 @@ function downloadPDF() {
           pageTotal: qty,
           includeRecord: state.print.includeRecord,
           includeInstr: state.print.includeInstr,
+      includeMarker: state.print.includeMarker,
           scale: 2
         });
         const imgData = tmp.toDataURL('image/png');
@@ -1567,6 +1707,7 @@ function browserPrint() {
       pageTotal: qty,
       includeRecord: state.print.includeRecord,
       includeInstr: state.print.includeInstr,
+      includeMarker: state.print.includeMarker,
       scale: 2
     });
     const img = new Image();
@@ -1581,87 +1722,153 @@ function browserPrint() {
 }
 
 /* ============================================================
-   CARDS MODE (number deck for game play)
+   CARDS MODE (two distinct packs: plain numbers / color groups)
+   Each pack has its own games and its own special cards.
    ============================================================ */
 
-const SPECIAL_CARDS = [
-  { type: 'special', value: 'wild',      label: '萬用',  symbol: '★',  desc: '可代替任何數字使用' },
-  { type: 'special', value: 'swap',      label: '交換',  symbol: '↔',  desc: '與其他玩家交換一張手牌' },
-  { type: 'special', value: 'skip',      label: '跳過',  symbol: '✕',  desc: '指定一位玩家暫停一輪' },
-  { type: 'special', value: 'double',    label: '翻倍',  symbol: '×2', desc: '本回合贏取的得分加倍' },
-  { type: 'special', value: 'challenge', label: '挑戰',  symbol: '?',  desc: '主持人出題，答對加分' }
+/* ----- Pack metadata ----- */
+const PACK_INFO = {
+  plain: {
+    label: '純數字組',
+    tagline: '速度 ‧ 計算 ‧ 排序',
+    desc: '<strong>適合：</strong>搶數字、算術搶答、大小比、排序接龍、對對碰、找鄰居等以「數值運算」為核心的玩法。'
+  },
+  color: {
+    label: '彩色分組',
+    tagline: '分類 ‧ 配色 ‧ UNO 風格',
+    desc: '<strong>適合：</strong>找同色、分組大集合、顏色接龍、彩虹挑戰、顏色記憶、顏色比一比等以「分類顏色」為核心的玩法。'
+  }
+};
+
+/* ----- Pack-specific SPECIAL CARDS ----- */
+const PLAIN_SPECIALS = [
+  { type: 'special', pack: 'plain', value: 'wild',  label: '萬用', symbol: '萬',  desc: '可代替任何數字使用（例如配對、接龍時）' },
+  { type: 'special', pack: 'plain', value: 'plus5', label: '加 5', symbol: '+5', desc: '搭配一張手牌，把該牌數字 +5 後使用' },
+  { type: 'special', pack: 'plain', value: 'minus3',label: '減 3', symbol: '−3', desc: '搭配一張手牌，把該牌數字 -3 後使用' },
+  { type: 'special', pack: 'plain', value: 'swap', label: '交換', symbol: '換',  desc: '與其他玩家交換一張手牌或桌面一張牌' },
+  { type: 'special', pack: 'plain', value: 'chall',label: '挑戰', symbol: '挑',  desc: '指定一位玩家回答一題（主持人出），答對加分' }
 ];
 
+const COLOR_SPECIALS = [
+  { type: 'special', pack: 'color', value: 'change',  label: '變色', symbol: '變', desc: '改變當前進行的顏色組（用於顏色接龍等）' },
+  { type: 'special', pack: 'color', value: 'wild',    label: '萬色', symbol: '全', desc: '可代替任何顏色組使用（萬用色卡）' },
+  { type: 'special', pack: 'color', value: 'skip',    label: '禁色', symbol: '禁', desc: '指定下家不能出該顏色組，需跳過或換色' },
+  { type: 'special', pack: 'color', value: 'reverse', label: '倒序', symbol: '反', desc: '反轉目前的出牌順序方向' },
+  { type: 'special', pack: 'color', value: 'collect', label: '全收', symbol: '收', desc: '從桌面或棄牌堆收走指定顏色組所有牌' }
+];
+
+/* ----- Pack-specific GAMES (rules sheets) ----- */
+const PLAIN_GAMES = [
+  {
+    title: '搶數字', meta: '人數 2-6 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放桌面。主持人喊一個數字，最先正確拿到該卡的玩家得 1 分。約定時間後分數最高者獲勝。'
+  },
+  {
+    title: '算術搶答', meta: '人數 2-6 ‧ 6+ ‧ 5-15 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊算式（如「3+5」），最先拿到答案卡（8）的玩家得 1 分。進階版可用兩步算式。'
+  },
+  {
+    title: '大小比一比', meta: '人數 2-6 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '牌堆中央朝下，每人同時翻一張，數字最大者贏走這輪所有牌。變化版：改為最小者贏，訓練反向思考。'
+  },
+  {
+    title: '排序接龍', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
+    desc: '每人發 5 張，剩餘放中央，翻最上面 1 張作起始。輪流出比起始牌「大或小 1」的牌；無法出則抽 1 張。先出完者勝。'
+  },
+  {
+    title: '對對碰', meta: '人數 1-4 ‧ 4+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
+    desc: '所有牌正面朝下排列。輪流翻 2 張，數字相同則取走這對牌並再翻；不同則翻回。全部配對完，牌最多者獲勝。'
+  },
+  {
+    title: '找鄰居', meta: '人數 1-4 ‧ 5+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊一個數字（如 10），玩家要找出 ±1（9 和 11）。可變化為 ±2、±3、或倍數關係。'
+  }
+];
+
+const COLOR_GAMES = [
+  {
+    title: '找同色', meta: '人數 1-4 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '所有牌正面朝上散放。主持人喊一個顏色組（如「藍色 20-29」），玩家最快收齊該色所有卡片者勝。訓練分類速度。'
+  },
+  {
+    title: '分組大集合', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
+    desc: '每人發 7 張，剩餘放中央當補抽堆。輪流抽一張並丟一張，目標是手上湊齊「同一顏色組的完整一套」者勝。'
+  },
+  {
+    title: '顏色接龍', meta: '人數 2-4 ‧ 5+ ‧ 10-15 分鐘',
+    desc: '類 UNO 玩法。每人 7 張，翻最上面一張作起始。出牌必須「同色組」才能接。無法出則抽一張。先出完手牌者勝。'
+  },
+  {
+    title: '彩虹挑戰', meta: '人數 2-6 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '所有牌朝上散放。玩家輪流挑一張，目標是「每個顏色組各收集一張」最先湊齊全色者勝。考驗分類記憶。'
+  },
+  {
+    title: '顏色記憶', meta: '人數 1-4 ‧ 5+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
+    desc: '所有牌朝下排列。翻 2 張，必須「同色組且同數字」才算配對（最高難度）。或簡化為「同色組」即可配對。'
+  },
+  {
+    title: '顏色比一比', meta: '人數 2-4 ‧ 4+ ‧ 5-10 分鐘',
+    desc: '每人指定一個顏色組為自己領地。從牌堆翻牌，符合自己領地顏色的歸己。輪數後加總點數，最高者勝。'
+  }
+];
+
+/* ----- Color groups (for visual styling) ----- */
 const COLOR_GROUPS = [
-  { range: [1, 9],   bg: '#fef3c7', accent: '#d97706', label: '1-9' },
-  { range: [10, 19], bg: '#fee2e2', accent: '#dc2626', label: '10-19' },
+  { range: [1, 9],   bg: '#fef3c7', accent: '#b45309', label: '1-9' },
+  { range: [10, 19], bg: '#fee2e2', accent: '#b91c1c', label: '10-19' },
   { range: [20, 29], bg: '#dbeafe', accent: '#1d4ed8', label: '20-29' },
-  { range: [30, 39], bg: '#dcfce7', accent: '#16a34a', label: '30-39' },
-  { range: [40, 49], bg: '#f3e8ff', accent: '#7c3aed', label: '40-49' },
-  { range: [50, 99], bg: '#ffedd5', accent: '#ea580c', label: '50+' }
+  { range: [30, 39], bg: '#dcfce7', accent: '#15803d', label: '30-39' },
+  { range: [40, 49], bg: '#f3e8ff', accent: '#6d28d9', label: '40-49' },
+  { range: [50, 99], bg: '#ffedd5', accent: '#c2410c', label: '50+' }
 ];
 
 function getColorGroup(num) {
   return COLOR_GROUPS.find(g => num >= g.range[0] && num <= g.range[1]) || COLOR_GROUPS[0];
 }
 
+/* ----- Generate the full deck ----- */
 function generateDeck(settings) {
-  const { range, copies, includeSpecial } = settings;
+  const { pack, range, copies, includeSpecial } = settings;
   const deck = [];
   for (let n = 1; n <= range; n++) {
     for (let c = 0; c < copies; c++) {
-      deck.push({ type: 'number', value: n });
+      deck.push({ type: 'number', value: n, pack });
     }
   }
   if (includeSpecial) {
-    // 2 of each special = 10 cards
-    SPECIAL_CARDS.forEach(s => { deck.push({ ...s }); deck.push({ ...s }); });
+    const specials = pack === 'plain' ? PLAIN_SPECIALS : COLOR_SPECIALS;
+    specials.forEach(s => { deck.push({ ...s }); deck.push({ ...s }); });
   }
   return deck;
 }
 
-/* Dice-style pip patterns for 1-9 */
-const PIP_POSITIONS = {
-  1: [[0.5, 0.5]],
-  2: [[0.25, 0.25], [0.75, 0.75]],
-  3: [[0.22, 0.22], [0.5, 0.5], [0.78, 0.78]],
-  4: [[0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]],
-  5: [[0.25, 0.25], [0.75, 0.25], [0.5, 0.5], [0.25, 0.75], [0.75, 0.75]],
-  6: [[0.25, 0.2], [0.75, 0.2], [0.25, 0.5], [0.75, 0.5], [0.25, 0.8], [0.75, 0.8]],
-  7: [[0.25, 0.2], [0.75, 0.2], [0.25, 0.5], [0.5, 0.5], [0.75, 0.5], [0.25, 0.8], [0.75, 0.8]],
-  8: [[0.2, 0.18], [0.5, 0.18], [0.8, 0.18], [0.2, 0.5], [0.8, 0.5], [0.2, 0.82], [0.5, 0.82], [0.8, 0.82]],
-  9: [[0.2, 0.2], [0.5, 0.2], [0.8, 0.2], [0.2, 0.5], [0.5, 0.5], [0.8, 0.5], [0.2, 0.8], [0.5, 0.8], [0.8, 0.8]]
-};
-
-function drawPips(ctx, cx, cy, boxSize, count, color) {
-  if (count < 1 || count > 9) return;
-  const pos = PIP_POSITIONS[count];
-  const r = boxSize * 0.07;
-  ctx.fillStyle = color;
-  pos.forEach(([px, py]) => {
-    ctx.beginPath();
-    ctx.arc(cx - boxSize/2 + px * boxSize, cy - boxSize/2 + py * boxSize, r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function drawNumberCard(ctx, x, y, w, h, card, style, u) {
-  // Determine colors
+/* ----- Draw a single card ----- */
+function drawNumberCard(ctx, x, y, w, h, card, settings, u) {
+  const { pack } = settings;
   let bgColor = '#fcfaf3';
   let accent = '#2a2622';
   let textColor = '#18181b';
   let groupLabel = null;
 
-  if (card.type === 'number' && style === 'color') {
-    const g = getColorGroup(card.value);
-    bgColor = g.bg;
-    accent = g.accent;
-    textColor = g.accent;
-    groupLabel = g.label;
+  if (card.type === 'number') {
+    if (pack === 'color') {
+      const g = getColorGroup(card.value);
+      bgColor = g.bg;
+      accent = g.accent;
+      textColor = g.accent;
+      groupLabel = g.label;
+    }
   } else if (card.type === 'special') {
-    bgColor = '#fef3d4';
-    accent = '#92520c';
-    textColor = '#92520c';
+    if (card.pack === 'plain') {
+      bgColor = '#fef3d4';
+      accent = '#92520c';
+      textColor = '#92520c';
+    } else {
+      // Color pack specials use a distinct teal-slate scheme
+      bgColor = '#e6eef0';
+      accent = '#1f5350';
+      textColor = '#1f5350';
+    }
   }
 
   // Background
@@ -1686,14 +1893,12 @@ function drawNumberCard(ctx, x, y, w, h, card, style, u) {
   if (card.type === 'number') {
     const num = String(card.value);
 
-    // Top-left corner index
+    // Corner indices
     ctx.fillStyle = accent;
     ctx.font = `700 ${15*u}px "Noto Sans TC", sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(num, x + padX, y + padY);
-
-    // Bottom-right corner index (mirrored visually)
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.fillText(num, x + w - padX, y + h - padY);
@@ -1706,14 +1911,7 @@ function drawNumberCard(ctx, x, y, w, h, card, style, u) {
     ctx.textBaseline = 'middle';
     ctx.fillText(num, x + w/2, y + h/2);
 
-    // Dice pips (top-right & bottom-left) for dots style, 1-9 only
-    if (style === 'dots' && card.value >= 1 && card.value <= 9) {
-      const pipBoxSize = Math.min(w, h) * 0.22;
-      drawPips(ctx, x + w - padX - pipBoxSize/2 - 2*u, y + padY + pipBoxSize/2 + 4*u, pipBoxSize, card.value, accent);
-      drawPips(ctx, x + padX + pipBoxSize/2 + 2*u, y + h - padY - pipBoxSize/2 - 4*u, pipBoxSize, card.value, accent);
-    }
-
-    // Group label for color style
+    // Group label (color pack only)
     if (groupLabel) {
       ctx.fillStyle = accent;
       ctx.globalAlpha = 0.85;
@@ -1724,31 +1922,40 @@ function drawNumberCard(ctx, x, y, w, h, card, style, u) {
       ctx.globalAlpha = 1;
     }
   } else if (card.type === 'special') {
+    // Pack indicator at top
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = 0.6;
+    ctx.font = `500 ${9*u}px "Noto Sans TC", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.pack === 'plain' ? '純數字 ‧ 特殊牌' : '彩色組 ‧ 特殊牌', x + w/2, y + padY);
+    ctx.globalAlpha = 1;
+
     // Big symbol in center
-    const bigSize = Math.min(w, h) * 0.42;
+    const bigSize = Math.min(w, h) * 0.40;
     ctx.fillStyle = textColor;
     ctx.font = `900 ${bigSize}px "Noto Serif TC", "Songti TC", serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(card.symbol, x + w/2, y + h/2 - bigSize * 0.18);
+    ctx.fillText(card.symbol, x + w/2, y + h/2 - bigSize * 0.15);
 
     // Label below symbol
-    ctx.font = `700 ${17*u}px "Noto Sans TC", sans-serif`;
-    ctx.fillText(card.label, x + w/2, y + h/2 + bigSize * 0.42);
+    ctx.font = `700 ${16*u}px "Noto Sans TC", sans-serif`;
+    ctx.fillText(card.label, x + w/2, y + h/2 + bigSize * 0.45);
 
     // Corner symbols
     ctx.font = `700 ${13*u}px "Noto Serif TC", serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText(card.symbol, x + padX, y + padY);
+    ctx.fillText(card.symbol, x + padX, y + padY + 12*u);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'bottom';
     ctx.fillText(card.symbol, x + w - padX, y + h - padY);
   }
 
-  // Small attribution at very bottom
-  ctx.fillStyle = card.type === 'special' ? '#92520c' : '#a39c8a';
-  ctx.globalAlpha = card.type === 'special' ? 0.55 : 0.8;
+  // Small attribution
+  ctx.fillStyle = accent;
+  ctx.globalAlpha = card.type === 'special' ? 0.5 : 0.55;
   ctx.font = `400 ${6.5*u}px "Noto Serif TC", serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
@@ -1762,23 +1969,18 @@ function drawCutMarksAt(ctx, x, y, w, h, u) {
   ctx.strokeStyle = '#9a8f76';
   ctx.lineWidth = 0.5 * u;
   ctx.beginPath();
-  // Top-left
   ctx.moveTo(x - len - off, y); ctx.lineTo(x - off, y);
   ctx.moveTo(x, y - len - off); ctx.lineTo(x, y - off);
-  // Top-right
   ctx.moveTo(x + w + off, y); ctx.lineTo(x + w + len + off, y);
   ctx.moveTo(x + w, y - len - off); ctx.lineTo(x + w, y - off);
-  // Bottom-left
   ctx.moveTo(x - len - off, y + h); ctx.lineTo(x - off, y + h);
   ctx.moveTo(x, y + h + off); ctx.lineTo(x, y + h + len + off);
-  // Bottom-right
   ctx.moveTo(x + w + off, y + h); ctx.lineTo(x + w + len + off, y + h);
   ctx.moveTo(x + w, y + h + off); ctx.lineTo(x + w, y + h + len + off);
   ctx.stroke();
 }
 
-function renderDeckPage(canvas, deck, pageNo, pageTotal, opts) {
-  const { style, scale = 2 } = opts;
+function renderDeckPage(canvas, deck, pageNo, pageTotal, settings, scale = 2) {
   const W = 595 * scale;
   const H = 842 * scale;
   canvas.width = W;
@@ -1803,9 +2005,9 @@ function renderDeckPage(canvas, deck, pageNo, pageTotal, opts) {
   ctx.font = `500 ${9*u}px "Noto Sans TC", sans-serif`;
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
-  ctx.fillText(`數字牌組 ‧ 第 ${pageNo} / ${pageTotal} 頁`, W - 16*u, 12*u);
+  const packLabel = PACK_INFO[settings.pack].label;
+  ctx.fillText(`${packLabel} ‧ 第 ${pageNo} / ${pageTotal} 頁`, W - 16*u, 12*u);
 
-  // Draw cards
   const startIdx = (pageNo - 1) * cardsPerPage;
   for (let i = 0; i < cardsPerPage; i++) {
     const cardIdx = startIdx + i;
@@ -1814,7 +2016,7 @@ function renderDeckPage(canvas, deck, pageNo, pageTotal, opts) {
     const c = i % cols;
     const cardX = pageMargin + c * (cardW + gap);
     const cardY = pageMargin + r * (cardH + gap);
-    drawNumberCard(ctx, cardX, cardY, cardW, cardH, deck[cardIdx], style, u);
+    drawNumberCard(ctx, cardX, cardY, cardW, cardH, deck[cardIdx], settings, u);
     drawCutMarksAt(ctx, cardX, cardY, cardW, cardH, u);
   }
 
@@ -1823,7 +2025,7 @@ function renderDeckPage(canvas, deck, pageNo, pageTotal, opts) {
   ctx.font = `400 ${8*u}px "Noto Serif TC", serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText('數字牌卡組 ｜ 設計者：愛迪樂 鍾孟修 職能治療師', W/2, H - 14*u);
+  ctx.fillText(`${packLabel}牌組 ｜ 設計者：愛迪樂 鍾孟修 職能治療師`, W/2, H - 14*u);
 }
 
 function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -1833,67 +2035,30 @@ function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight) {
     const ch = text[i];
     if (ch === '\n') {
       ctx.fillText(line, x, cy);
-      line = '';
-      cy += lineHeight;
-      continue;
+      line = ''; cy += lineHeight; continue;
     }
     const test = line + ch;
     if (ctx.measureText(test).width > maxWidth && line.length > 0) {
       ctx.fillText(line, x, cy);
-      line = ch;
-      cy += lineHeight;
+      line = ch; cy += lineHeight;
     } else {
       line = test;
     }
   }
-  if (line) {
-    ctx.fillText(line, x, cy);
-    cy += lineHeight;
-  }
+  if (line) { ctx.fillText(line, x, cy); cy += lineHeight; }
   return cy;
 }
 
-const GAMES = [
-  {
-    title: '搶數字',
-    meta: '人數 2-6 ‧ 年齡 4+ ‧ 5-10 分鐘',
-    desc: '所有牌正面朝上散放桌面。主持人喊出一個數字，最先正確拿到該卡的玩家得 1 分。約定時間後，分數最高者獲勝。'
-  },
-  {
-    title: '對對碰',
-    meta: '人數 1-4 ‧ 年齡 4+ ‧ 5-15 分鐘 ‧ 需 2 份以上',
-    desc: '所有牌正面朝下排列。玩家輪流翻 2 張，數字相同則取走這對牌並再翻一次；不同則翻回，換下一位。全部配對完，牌最多者獲勝。'
-  },
-  {
-    title: '大小比一比',
-    meta: '人數 2-6 ‧ 年齡 4+ ‧ 5-10 分鐘',
-    desc: '牌堆中央朝下，每人同時翻一張，數字最大者贏走這輪所有牌。牌堆翻完，獲得牌最多者獲勝。可加變化：最小者贏。'
-  },
-  {
-    title: '算術搶答',
-    meta: '人數 2-6 ‧ 年齡 6+ ‧ 5-15 分鐘',
-    desc: '所有牌正面朝上散放。主持人喊一道算式（如「3+5」），最先拿到答案卡（8）的玩家得 1 分。進階版可用兩步算式「5+3-2」。'
-  },
-  {
-    title: '找鄰居',
-    meta: '人數 1-4 ‧ 年齡 5+ ‧ 5-10 分鐘',
-    desc: '所有牌正面朝上散放。主持人喊一個數字（如 10），玩家要找出 ±1（9 和 11）。可變化為 ±2、±3、或倍數關係（5 的倍數）。'
-  },
-  {
-    title: '排序接龍',
-    meta: '人數 2-4 ‧ 年齡 5+ ‧ 10-15 分鐘',
-    desc: '每人發 5 張，剩餘牌堆放中央，翻最上面 1 張作起始。玩家輪流出比起始牌「大或小 1」的牌；無法出則抽 1 張並換下一位。先出完手牌者獲勝。'
-  }
-];
+function drawRulesPage(canvas, settings, scale = 2) {
+  const { pack, includeSpecial } = settings;
+  const games = pack === 'plain' ? PLAIN_GAMES : COLOR_GAMES;
+  const specials = pack === 'plain' ? PLAIN_SPECIALS : COLOR_SPECIALS;
+  const packInfo = PACK_INFO[pack];
 
-function drawRulesPage(canvas, opts) {
-  const { scale = 2, includeSpecial } = opts;
   const W = 595 * scale;
   const H = 842 * scale;
-  canvas.width = W;
-  canvas.height = H;
-  canvas.style.width = '595px';
-  canvas.style.height = '842px';
+  canvas.width = W; canvas.height = H;
+  canvas.style.width = '595px'; canvas.style.height = '842px';
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = '#ffffff';
@@ -1907,42 +2072,50 @@ function drawRulesPage(canvas, opts) {
   ctx.font = `700 ${24*u}px "Noto Serif TC", serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('數字牌卡 ‧ 遊戲玩法', margin, margin);
+  ctx.fillText(`${packInfo.label} ‧ 遊戲玩法`, margin, margin);
 
   // Subtitle
   ctx.fillStyle = '#5e5a52';
   ctx.font = `400 ${11*u}px "Noto Sans TC", sans-serif`;
-  ctx.fillText('六種玩法 ‧ 適用兒童 / 長者 / 認知復健', margin, margin + 30*u);
+  ctx.fillText(`${packInfo.tagline} ‧ 六種專屬玩法`, margin, margin + 30*u);
 
   // Divider
-  ctx.strokeStyle = '#c9bea4';
-  ctx.lineWidth = 0.8 * u;
+  ctx.strokeStyle = pack === 'plain' ? '#92520c' : '#1f5350';
+  ctx.lineWidth = 1.4 * u;
   ctx.beginPath();
   ctx.moveTo(margin, margin + 52*u);
+  ctx.lineTo(margin + 80*u, margin + 52*u);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#c9bea4';
+  ctx.lineWidth = 0.6 * u;
+  ctx.beginPath();
+  ctx.moveTo(margin + 80*u, margin + 52*u);
   ctx.lineTo(W - margin, margin + 52*u);
   ctx.stroke();
 
-  // Two-column layout for games (3 per column)
+  // Two-column game layout (3 per column)
   const colWidth = (W - 2*margin - 24*u) / 2;
   const colX = [margin, margin + colWidth + 24*u];
-
   let cursorY = [margin + 70*u, margin + 70*u];
+  const markerColor = pack === 'plain' ? '#92520c' : '#1f5350';
 
-  GAMES.forEach((g, i) => {
+  games.forEach((g, i) => {
     const col = i % 2;
     const x = colX[col];
     let y = cursorY[col];
 
-    // Title with marker
-    ctx.fillStyle = '#2c6e6a';
+    // Game number marker
+    ctx.fillStyle = markerColor;
     ctx.font = `900 ${10*u}px "Noto Sans TC", sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(`遊戲 ${i + 1}`, x, y);
 
+    // Title
     ctx.fillStyle = '#2a2622';
     ctx.font = `700 ${15*u}px "Noto Serif TC", serif`;
-    ctx.fillText(g.title, x + 38*u, y - 2*u);
+    ctx.fillText(g.title, x + 42*u, y - 2*u);
     y += 20*u;
 
     // Meta
@@ -1956,12 +2129,11 @@ function drawRulesPage(canvas, opts) {
     ctx.font = `400 ${11*u}px "Noto Sans TC", sans-serif`;
     y = drawWrappedText(ctx, g.desc, x, y, colWidth, 17*u);
     y += 16*u;
-
     cursorY[col] = y;
   });
 
   // Specials section
-  let specialsY = Math.max(cursorY[0], cursorY[1]) + 12*u;
+  let specialsY = Math.max(cursorY[0], cursorY[1]) + 8*u;
   if (includeSpecial) {
     ctx.strokeStyle = '#c9bea4';
     ctx.lineWidth = 0.5 * u;
@@ -1969,42 +2141,49 @@ function drawRulesPage(canvas, opts) {
     ctx.moveTo(margin, specialsY);
     ctx.lineTo(W - margin, specialsY);
     ctx.stroke();
-    specialsY += 16*u;
+    specialsY += 14*u;
 
-    ctx.fillStyle = '#92520c';
+    ctx.fillStyle = markerColor;
     ctx.font = `700 ${14*u}px "Noto Sans TC", sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('特殊牌用法', margin, specialsY);
+    ctx.fillText(`${packInfo.label} ‧ 專屬特殊牌玩法`, margin, specialsY);
     specialsY += 22*u;
 
-    SPECIAL_CARDS.forEach(s => {
-      ctx.fillStyle = '#92520c';
-      ctx.font = `700 ${13*u}px "Noto Serif TC", serif`;
-      ctx.fillText(s.symbol, margin, specialsY);
+    specials.forEach(s => {
+      ctx.fillStyle = markerColor;
+      ctx.font = `700 ${14*u}px "Noto Serif TC", serif`;
+      ctx.fillText(s.symbol, margin + 4*u, specialsY);
       ctx.font = `700 ${11*u}px "Noto Sans TC", sans-serif`;
-      ctx.fillText(s.label, margin + 28*u, specialsY + 2*u);
+      ctx.fillText(s.label, margin + 32*u, specialsY + 2*u);
       ctx.fillStyle = '#5e5a52';
       ctx.font = `400 ${10.5*u}px "Noto Sans TC", sans-serif`;
-      ctx.fillText('—  ' + s.desc, margin + 70*u, specialsY + 2*u);
+      ctx.fillText('—  ' + s.desc, margin + 78*u, specialsY + 2*u);
       specialsY += 18*u;
     });
-    specialsY += 8*u;
+    specialsY += 6*u;
   }
 
-  // OT tips block at bottom
-  const tipsY = Math.max(specialsY, H - margin - 80*u);
-  ctx.fillStyle = '#e0eceb';
-  ctx.fillRect(margin, tipsY, W - 2*margin, 60*u);
-  ctx.fillStyle = '#1f5350';
+  // OT tips at the bottom
+  const tipsBlockH = 64*u;
+  const tipsY = Math.min(H - margin - tipsBlockH - 14*u, Math.max(specialsY + 8*u, H - margin - tipsBlockH - 14*u));
+  ctx.fillStyle = pack === 'plain' ? '#fef3d4' : '#e6eef0';
+  ctx.fillRect(margin, tipsY, W - 2*margin, tipsBlockH);
+  ctx.fillStyle = markerColor;
   ctx.font = `700 ${12*u}px "Noto Sans TC", sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('🩺  OT 治療師訣竅', margin + 12*u, tipsY + 10*u);
-  ctx.fillStyle = '#1f5350';
+  ctx.fillText('OT 治療師訣竅', margin + 12*u, tipsY + 10*u);
+  ctx.fillStyle = markerColor;
   ctx.font = `500 ${10*u}px "Noto Sans TC", sans-serif`;
-  ctx.fillText('兒童：數感建立、視覺搜尋、輪流等待　／　長者：短期記憶、處理速度、注意力切換', margin + 12*u, tipsY + 30*u);
-  ctx.fillText('中風復健：精細抓握、視覺掃描　／　失智症：常識喚回、社交互動', margin + 12*u, tipsY + 45*u);
+  const tip1 = pack === 'plain'
+    ? '兒童：數感建立、運算速度、輪流等待；長者：短期記憶、處理速度、注意力'
+    : '兒童：分類能力、顏色辨識、規則學習；長者：分類保留、視覺辨色、社交互動';
+  const tip2 = pack === 'plain'
+    ? '中風復健：精細抓握、視覺掃描、計算復健；失智症：常識喚回、序列保留'
+    : '中風復健：視覺掃描、左右忽略訓練、分類；失智症：感官刺激、配色任務';
+  ctx.fillText(tip1, margin + 12*u, tipsY + 30*u);
+  ctx.fillText(tip2, margin + 12*u, tipsY + 47*u);
 
   // Footer
   ctx.fillStyle = '#908b7d';
@@ -2021,21 +2200,50 @@ function getDeckPages(deck) {
 function renderDeckPreview() {
   const canvas = $('deckPreviewCanvas');
   const deck = generateDeck(state.cards);
-  const pages = getDeckPages(deck);
-  renderDeckPage(canvas, deck, 1, pages, { style: state.cards.style, scale: 1.5 });
-  updateDeckSummary(deck, pages);
+  const deckPages = getDeckPages(deck);
+  const totalPages = deckPages + (state.cards.includeRules ? 1 : 0);
+
+  // Clamp current preview page to valid range
+  if (state.cards.previewPage > totalPages) state.cards.previewPage = totalPages;
+  if (state.cards.previewPage < 1) state.cards.previewPage = 1;
+
+  // Render the appropriate page
+  const p = state.cards.previewPage;
+  if (p <= deckPages) {
+    renderDeckPage(canvas, deck, p, deckPages, state.cards, 1.5);
+  } else {
+    // Rules page is at position deckPages + 1
+    drawRulesPage(canvas, state.cards, 1.5);
+  }
+
+  updateDeckSummary(deck, deckPages);
+  updateDeckNav(deckPages, totalPages);
+}
+
+function updateDeckNav(deckPages, totalPages) {
+  const p = state.cards.previewPage;
+  let label;
+  if (p > deckPages) {
+    label = `規則頁  (${p} / ${totalPages})`;
+  } else {
+    label = `第 ${p} / ${totalPages} 頁`;
+  }
+  $('deckPageIndicator').textContent = label;
+  $('deckPrevBtn').disabled = p <= 1;
+  $('deckNextBtn').disabled = p >= totalPages;
 }
 
 function updateDeckSummary(deck, pages) {
   const total = deck.length;
-  const styleLabel = { plain: '純數字', dots: '數字+點數', color: '彩色分組' }[state.cards.style];
-  let summary = `共 ${total} 張`;
-  if (state.cards.includeSpecial) summary += `（含 10 張特殊牌）`;
+  const numCount = state.cards.range * state.cards.copies;
+  const packLabel = PACK_INFO[state.cards.pack].label;
+  let summary = `${packLabel} ‧ ${numCount} 張數字牌`;
+  if (state.cards.includeSpecial) summary += ` + 10 張專屬特殊牌`;
   summary += ` ‧ ${pages} 頁`;
   if (state.cards.includeRules) summary += ` + 規則頁 1 頁`;
   $('deckSummary').querySelector('.deck-summary-text').textContent = summary;
   $('deckPreviewMeta').textContent =
-    `1-${state.cards.range} × ${state.cards.copies} 份 ‧ ${styleLabel} ‧ 共 ${total} 張`;
+    `${packLabel} ‧ 1-${state.cards.range} × ${state.cards.copies} 份 ‧ 共 ${total} 張`;
 }
 
 function downloadDeckPDF() {
@@ -2050,19 +2258,19 @@ function downloadDeckPDF() {
       const deck = generateDeck(state.cards);
       const pages = getDeckPages(deck);
       for (let p = 1; p <= pages; p++) {
-        renderDeckPage(tmp, deck, p, pages, { style: state.cards.style, scale: 2 });
+        renderDeckPage(tmp, deck, p, pages, state.cards, 2);
         const imgData = tmp.toDataURL('image/png');
         if (p > 1) pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
       }
       if (state.cards.includeRules) {
-        drawRulesPage(tmp, { scale: 2, includeSpecial: state.cards.includeSpecial });
+        drawRulesPage(tmp, state.cards, 2);
         const imgData = tmp.toDataURL('image/png');
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
       }
-      const styleTag = { plain: '純數字', dots: '點數', color: '彩色' }[state.cards.style];
-      const filename = `數字牌組_1-${state.cards.range}_${state.cards.copies}份_${styleTag}.pdf`;
+      const packTag = state.cards.pack === 'plain' ? '純數字組' : '彩色分組';
+      const filename = `數字牌組_${packTag}_1-${state.cards.range}_${state.cards.copies}份.pdf`;
       pdf.save(filename);
     } catch (err) {
       console.error(err);
@@ -2083,7 +2291,7 @@ function browserPrintDeck() {
   const totalPages = pages + (state.cards.includeRules ? 1 : 0);
   let pageCount = 0;
   for (let p = 1; p <= pages; p++) {
-    renderDeckPage(tmp, deck, p, pages, { style: state.cards.style, scale: 2 });
+    renderDeckPage(tmp, deck, p, pages, state.cards, 2);
     const img = new Image();
     img.src = tmp.toDataURL('image/png');
     img.style.width = '210mm';
@@ -2094,7 +2302,7 @@ function browserPrintDeck() {
     area.appendChild(img);
   }
   if (state.cards.includeRules) {
-    drawRulesPage(tmp, { scale: 2, includeSpecial: state.cards.includeSpecial });
+    drawRulesPage(tmp, state.cards, 2);
     const img = new Image();
     img.src = tmp.toDataURL('image/png');
     img.style.width = '210mm';
@@ -2157,17 +2365,43 @@ function init() {
     state.print.includeInstr = e.target.checked;
     renderPreview();
   });
+  $('includeMarker').addEventListener('change', (e) => {
+    state.print.includeMarker = e.target.checked;
+    renderPreview();
+  });
   $('refreshPreview').addEventListener('click', renderPreview);
   $('downloadPdfBtn').addEventListener('click', downloadPDF);
   $('browserPrintBtn').addEventListener('click', browserPrint);
 
-  // Cards (number deck)
+  // Cards (number deck) - pack-based
+  function applyPackUI() {
+    const pack = state.cards.pack;
+    const info = PACK_INFO[pack];
+    $('deckPackDesc').innerHTML = info.desc;
+    // Update special label hint
+    $('deckSpecialLabel').textContent = pack === 'plain'
+      ? '加入專屬特殊牌 萬 +5 −3 換 挑（共 10 張）'
+      : '加入專屬特殊牌 變 全 禁 反 收（共 10 張）';
+  }
+  function resetAndRefreshDeck() {
+    state.cards.previewPage = 1;
+    renderDeckPreview();
+  }
+  $('deckPackSeg').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      state.cards.pack = b.dataset.pack;
+      $('deckPackSeg').querySelectorAll('button').forEach(x =>
+        x.classList.toggle('on', x === b));
+      applyPackUI();
+      resetAndRefreshDeck();
+    });
+  });
   $('deckRangeSeg').querySelectorAll('button').forEach(b => {
     b.addEventListener('click', () => {
       state.cards.range = parseInt(b.dataset.range, 10);
       $('deckRangeSeg').querySelectorAll('button').forEach(x =>
         x.classList.toggle('on', x === b));
-      renderDeckPreview();
+      resetAndRefreshDeck();
     });
   });
   $('deckCopiesSeg').querySelectorAll('button').forEach(b => {
@@ -2175,30 +2409,26 @@ function init() {
       state.cards.copies = parseInt(b.dataset.copies, 10);
       $('deckCopiesSeg').querySelectorAll('button').forEach(x =>
         x.classList.toggle('on', x === b));
-      renderDeckPreview();
-    });
-  });
-  $('deckStyleSeg').querySelectorAll('button').forEach(b => {
-    b.addEventListener('click', () => {
-      state.cards.style = b.dataset.style;
-      $('deckStyleSeg').querySelectorAll('button').forEach(x =>
-        x.classList.toggle('on', x === b));
-      const hints = {
-        plain: '大數字為主，視覺清晰',
-        dots: '數字加骰子點數，幫助幼兒建立數感',
-        color: '依十位數分色，方便分組與分類遊戲'
-      };
-      $('deckStyleHint').textContent = hints[state.cards.style];
-      renderDeckPreview();
+      resetAndRefreshDeck();
     });
   });
   $('deckSpecial').addEventListener('change', (e) => {
     state.cards.includeSpecial = e.target.checked;
-    renderDeckPreview();
+    resetAndRefreshDeck();
   });
   $('deckRules').addEventListener('change', (e) => {
     state.cards.includeRules = e.target.checked;
-    renderDeckPreview();
+    resetAndRefreshDeck();
+  });
+  $('deckPrevBtn').addEventListener('click', () => {
+    if (state.cards.previewPage > 1) {
+      state.cards.previewPage--;
+      renderDeckPreview();
+    }
+  });
+  $('deckNextBtn').addEventListener('click', () => {
+    state.cards.previewPage++;
+    renderDeckPreview();  // clamping happens inside
   });
   $('deckRefreshBtn').addEventListener('click', renderDeckPreview);
   $('deckDownloadBtn').addEventListener('click', downloadDeckPDF);
@@ -2206,6 +2436,7 @@ function init() {
 
   // Initial state
   $('modeDesc').innerHTML = MODE_DESC[state.mode];
+  applyPackUI();
 }
 
 document.addEventListener('DOMContentLoaded', init);
